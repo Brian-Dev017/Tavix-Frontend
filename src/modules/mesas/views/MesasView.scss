@@ -1,0 +1,107 @@
+// MesasView.scss — La Flor del Tumbo x Tavixx
+
+// .mesas-page inherits .app-page from global
+.mesas-page {
+  min-height: 100dvh;
+  background: $bg-deep;
+  font-family: $font-body;
+  color: $text-primary;
+  display: flex;
+  flex-direction: column;
+}
+
+// Chips de usuario y rol (compartidos entre vistas)
+.user-chip {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  background: $bg-card;
+  border: 1px solid $border-subtle;
+  border-radius: $r-full;
+  padding: 0.28rem 0.85rem 0.28rem 0.55rem;
+  font-size: 0.78rem;
+  color: $text-secondary;
+  font-weight: 500;
+  cursor: default;
+
+  i { font-size: 0.7rem; color: $amber; }
+}
+
+.rol-chip {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  border: 1px solid;
+  border-radius: $r-full;
+  padding: 0.25rem 0.8rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  flex-shrink: 0;
+
+  i { font-size: 0.68rem; }
+}
+
+.icon-btn {
+  @include icon-btn;
+
+  &.back-btn:hover {
+    border-color: $amber;
+    color: $amber;
+  }
+}
+
+// ── Contenido ─────────────────────────────────────────
+.mesas-content {
+  flex: 1;
+  padding: 1.75rem 1.5rem;
+  animation: fadeIn 0.35s ease both;
+}
+
+.mesas-section-label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: $text-dim;
+  margin-bottom: 1.25rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+
+  &::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: $border-subtle;
+  }
+}
+
+// ── Grid de mesas ─────────────────────────────────────
+.mesas-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
+  gap: 1rem;
+}
+
+// ── Empty state ───────────────────────────────────────
+.mesas-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 4rem 1.5rem;
+  text-align: center;
+  color: $text-dim;
+
+  i  { font-size: 3rem; opacity: 0.1; }
+  p  { font-size: 0.88rem; color: $text-muted; }
+  span { font-size: 0.75rem; color: $text-dim; }
+}
+
+// ── Responsive ────────────────────────────────────────
+@media (max-width: #{$bp-mobile}) {
+  .mesas-content { padding: 1.25rem 1rem; }
+  .mesas-grid { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 0.75rem; }
+  .user-chip { display: none; }
+}

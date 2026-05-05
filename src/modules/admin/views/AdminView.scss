@@ -1,0 +1,625 @@
+// AdminView.scss — La Flor del Tumbo x Tavixx
+
+.admin-page,
+.admin-view {
+  min-height: 100dvh;
+  background: $bg-deep;
+  font-family: $font-body;
+  color: $text-primary;
+  display: flex;
+  flex-direction: column;
+}
+
+// ── Botones de navegación en page-header ──────────────
+.nav-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0.85rem;
+  background: transparent;
+  border: 1px solid $border-subtle;
+  border-radius: $r-full;
+  cursor: pointer;
+  color: $text-muted;
+  font-size: 0.75rem;
+  font-weight: 600;
+  font-family: $font-body;
+  transition: $t-fast;
+
+  i { font-size: 0.72rem; }
+
+  &:hover {
+    background: $bg-hover;
+    border-color: $border-medium;
+    color: $text-primary;
+  }
+}
+
+.logout-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 1rem;
+  background: rgba(220, 38, 38, 0.06);
+  border: 1px solid rgba(220, 38, 38, 0.2);
+  border-radius: $r-full;
+  cursor: pointer;
+  color: $c-red;
+  font-size: 0.75rem;
+  font-weight: 600;
+  font-family: $font-body;
+  transition: $t-fast;
+
+  i { font-size: 0.7rem; }
+
+  &:hover {
+    background: rgba(220, 38, 38, 0.12);
+    border-color: rgba(220, 38, 38, 0.4);
+  }
+}
+
+.rol-chip {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  border: 1px solid;
+  border-radius: $r-full;
+  padding: 0.25rem 0.8rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  flex-shrink: 0;
+
+  i { font-size: 0.68rem; }
+}
+
+.hdr-btn {
+  @include icon-btn;
+}
+
+// ── Stats grid ────────────────────────────────────────
+.stats-section {
+  padding: 1.75rem 1.75rem 0;
+  animation: fadeIn 0.35s ease both;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 1rem;
+  padding: 1.5rem 1.75rem 0;
+}
+
+.stat-card {
+  @include card;
+  padding: 1.1rem 1.2rem;
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  transition: all 0.28s cubic-bezier(0.34, 1.56, 0.64, 1);
+  box-shadow: $shadow-sm;
+
+  &:hover {
+    transform: translateY(-4px) scale(1.02);
+    box-shadow: $shadow-md;
+    border-color: $border-medium;
+  }
+}
+
+.stat-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: $r-md;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  flex-shrink: 0;
+
+  &.icon-amber, &.si-amber {
+    background: $amber-bg;
+    color: $amber-dark;
+    border: 1px solid rgba(200, 81, 122, 0.2);
+  }
+
+  &.icon-green, &.si-emerald {
+    background: $c-green-bg;
+    color: $c-green;
+    border: 1px solid rgba(22, 163, 74, 0.2);
+  }
+
+  &.icon-blue, &.si-indigo {
+    background: $violet-bg-sm;
+    color: $violet;
+    border: 1px solid rgba(107, 142, 110, 0.2);
+  }
+
+  &.icon-violet, &.si-rose {
+    background: $c-red-bg;
+    color: $c-red;
+    border: 1px solid rgba(220, 38, 38, 0.2);
+  }
+}
+
+.stat-info { flex: 1; min-width: 0; }
+
+// aliases usados en el template
+.stat-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.stat-total {
+  font-size: 0.67rem;
+  color: $text-dim;
+  font-family: $font-mono;
+  margin-left: auto;
+  flex-shrink: 0;
+  align-self: flex-start;
+}
+
+.stat-label,
+.stat-lbl {
+  font-size: 0.67rem;
+  font-weight: 600;
+  color: $text-dim;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  letter-spacing: 0.01em;
+}
+
+.stat-value,
+.stat-val {
+  @include stat-number;
+  font-size: 1.6rem;
+  line-height: 1;
+}
+
+// ── Tab navigation ────────────────────────────────────
+.admin-tabs {
+  padding: 1.25rem 1.75rem 0;
+  border-bottom: 1px solid $border-subtle;
+  display: flex;
+  gap: 0.15rem;
+  animation: fadeIn 0.4s ease both;
+  overflow-x: auto;
+}
+
+.tab-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.55rem 1rem;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: $text-dim;
+  font-family: $font-body;
+  transition: $t-fast;
+  white-space: nowrap;
+
+  i { font-size: 0.78rem; }
+
+  &:hover {
+    color: $text-primary;
+    background: $bg-hover;
+    border-radius: $r-sm $r-sm 0 0;
+  }
+
+  &.active {
+    color: $amber;
+    border-bottom-color: $amber;
+    background: $amber-bg-sm;
+    border-radius: $r-sm $r-sm 0 0;
+  }
+}
+
+// ── Contenido de tab ──────────────────────────────────
+.admin-content {
+  flex: 1;
+  animation: fadeIn 0.25s ease both;
+}
+
+// ── Sección header ────────────────────────────────────
+.section-hdr {
+  @include section-header;
+  margin-bottom: 1.1rem;
+}
+
+// ── Lista de mesas (admin) ────────────────────────────
+.mesas-admin-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 0.75rem;
+}
+
+.mesa-admin-card {
+  @include card;
+  padding: 0.9rem 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: $shadow-sm;
+    border-color: $border-medium;
+  }
+
+  .mesa-num {
+    font-family: $font-mono;
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: $text-primary;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .mesa-actions { display: flex; gap: 0.35rem; }
+}
+
+// ── Formulario ────────────────────────────────────────
+.form-card {
+  @include card;
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  max-width: 480px;
+}
+
+.form-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+
+  label {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: $text-secondary;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+}
+
+:deep(.p-inputtext),
+:deep(.p-select),
+:deep(.p-password input) {
+  background: $bg-card-alt !important;
+  border-color: $border-subtle !important;
+  color: $text-primary !important;
+  border-radius: $r-sm !important;
+  height: 42px !important;
+  font-size: 0.875rem !important;
+
+  &:hover { border-color: $border-medium !important; }
+  &:focus, &.p-focus { border-color: $amber !important; box-shadow: 0 0 0 2px $amber-glow-sm !important; }
+}
+
+:deep(.p-select-label) { color: $text-primary !important; }
+:deep(.p-select-overlay) {
+  background: $bg-card-lift !important;
+  border-color: $border-medium !important;
+  border-radius: $r-md !important;
+  box-shadow: $shadow-lg !important;
+}
+:deep(.p-select-option:hover) { background: $bg-hover !important; }
+:deep(.p-select-option.p-selected) { background: $amber-bg !important; color: $amber !important; }
+
+// ── Tabla de usuarios ─────────────────────────────────
+.users-table {
+  @include card;
+  overflow: hidden;
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  th {
+    padding: 0.65rem 1rem;
+    font-size: 0.66rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: $text-dim;
+    background: $bg-card-alt;
+    border-bottom: 1px solid $border-subtle;
+    text-align: left;
+  }
+
+  td {
+    padding: 0.75rem 1rem;
+    font-size: 0.84rem;
+    color: $text-secondary;
+    border-bottom: 1px solid $border-subtle;
+    vertical-align: middle;
+  }
+
+  tr:last-child td { border-bottom: none; }
+
+  tr:hover td {
+    background: $bg-hover;
+    color: $text-primary;
+  }
+
+  .id-cell {
+    font-family: $font-mono;
+    font-size: 0.78rem;
+    color: $text-dim;
+  }
+}
+
+// ── Roles / badges ────────────────────────────────────
+.role-badge {
+  @include badge-base;
+
+  &.role-admin  { background: $violet-bg-sm; color: $violet-light; }
+  &.role-mozo   { background: $amber-bg; color: $amber; }
+  &.role-cocina { background: $c-red-bg; color: $c-red; }
+  &.role-caja   { background: $c-green-bg; color: $c-green; }
+}
+
+// ── Skeleton loader ───────────────────────────────────
+.skeleton-row {
+  display: flex;
+  gap: 1rem;
+  padding: 0.75rem 1rem;
+
+  .sk { @include skeleton; border-radius: $r-xs; }
+  .sk-sm { height: 12px; }
+  .sk-md { height: 14px; }
+}
+
+// ── Acciones inline ───────────────────────────────────
+.action-btns {
+  display: flex;
+  gap: 0.35rem;
+}
+
+// ── Dialog overrides ──────────────────────────────────
+:deep(.p-dialog) {
+  background: $bg-card-lift !important;
+  border: 1px solid $border-medium !important;
+  border-radius: $r-xl !important;
+  box-shadow: $shadow-xl !important;
+
+  .p-dialog-header {
+    background: $bg-card-lift !important;
+    border-bottom: 1px solid $border-subtle !important;
+    padding: 1rem 1.5rem !important;
+    color: $text-primary !important;
+    font-family: $font-heading !important;
+    font-weight: 700 !important;
+    border-radius: $r-xl $r-xl 0 0 !important;
+  }
+
+  .p-dialog-content {
+    background: $bg-card-lift !important;
+    padding: 1.25rem 1.5rem !important;
+    color: $text-secondary !important;
+  }
+
+  .p-dialog-footer {
+    background: $bg-card-lift !important;
+    border-top: 1px solid $border-subtle !important;
+    padding: 0.85rem 1.5rem !important;
+    display: flex !important;
+    justify-content: flex-end !important;
+    gap: 0.6rem !important;
+    border-radius: 0 0 $r-xl $r-xl !important;
+  }
+}
+
+// ── Loading slot ──────────────────────────────────────
+.loading-slot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem;
+  color: $text-dim;
+
+  .load-spinner {
+    font-size: 1.5rem;
+    color: $amber;
+  }
+}
+
+// ── Empty hint ────────────────────────────────────────
+.empty-hint {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem 1.25rem;
+  background: $amber-bg;
+  border: 1px solid rgba(200, 81, 122, 0.2);
+  border-radius: $r-md;
+  color: $text-secondary;
+  font-size: 0.84rem;
+  margin-bottom: 1rem;
+
+  p { margin: 0; }
+  strong { color: $amber; }
+}
+
+// ── Cat toolbar ───────────────────────────────────────
+.cat-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+  gap: 1rem;
+}
+
+.section-desc {
+  font-size: 0.8rem;
+  color: $text-dim;
+}
+
+// ── Cat grid ──────────────────────────────────────────
+.cat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 0.85rem;
+}
+
+.cat-card {
+  @include card;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  transition: $t-fast;
+
+  &:hover {
+    border-color: $border-medium;
+    transform: translateY(-2px);
+    box-shadow: $shadow-sm;
+  }
+}
+
+.cat-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.cat-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: $r-sm;
+  background: $amber-bg;
+  color: $amber;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
+}
+
+.cat-actions {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.cat-nombre {
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: $text-primary;
+}
+
+.cat-desc {
+  font-size: 0.75rem;
+  color: $text-dim;
+  line-height: 1.4;
+}
+
+.cat-products-count {
+  font-size: 0.68rem;
+  font-family: $font-mono;
+  color: $text-muted;
+  margin-top: auto;
+  padding-top: 0.5rem;
+  border-top: 1px solid $border-subtle;
+}
+
+.cat-btn-edit,
+.cat-btn-del {
+  width: 28px;
+  height: 28px;
+  border: 1px solid $border-subtle;
+  background: transparent;
+  border-radius: $r-xs;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.72rem;
+  transition: $t-fast;
+
+  &:disabled { opacity: 0.35; cursor: not-allowed; }
+}
+
+.cat-btn-edit {
+  color: $text-muted;
+  &:hover:not(:disabled) { background: $bg-hover; color: $amber; border-color: $amber; }
+}
+
+.cat-btn-del {
+  color: $text-muted;
+  &:hover:not(:disabled) { background: rgba(248,113,113,0.08); color: $c-red; border-color: rgba(248,113,113,0.3); }
+}
+
+.cat-empty {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 3rem 1rem;
+  color: $text-dim;
+  text-align: center;
+
+  p { font-size: 0.84rem; color: $text-dim; }
+}
+
+// ── Mesa admin cards ──────────────────────────────────
+.mesa-admin-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.4rem;
+}
+
+.mesa-admin-num {
+  font-family: $font-mono;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: $text-primary;
+}
+
+.mesa-admin-cap {
+  font-size: 0.75rem;
+  color: $text-dim;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-bottom: 0.6rem;
+}
+
+.mesa-admin-actions {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.mesa-badge {
+  @include badge-base;
+  font-size: 0.6rem;
+  padding: 0.15rem 0.5rem;
+
+  &.mb-disponible { background: $c-green-bg; color: $c-green; }
+  &.mb-ocupada    { background: $c-red-bg; color: $c-red; }
+  &.mb-reservada  { background: $amber-bg; color: $amber; }
+  &.mb-inactiva   { background: $bg-card-alt; color: $text-dim; }
+}
+
+// ── Responsive ────────────────────────────────────────
+@media (max-width: #{$bp-desktop}) {
+  .stats-grid { grid-template-columns: 1fr 1fr; }
+}
+
+@media (max-width: #{$bp-mobile}) {
+  .admin-header { padding: 0 1rem; }
+  .stats-section, .admin-tabs, .admin-content { padding-inline: 1rem; }
+  .stats-grid { grid-template-columns: 1fr 1fr; gap: 0.6rem; padding: 1rem; }
+  .stat-val { font-size: 1.3rem; }
+  .mesas-admin-grid { grid-template-columns: 1fr 1fr; }
+  .main-panel { padding: 1rem; }
+}

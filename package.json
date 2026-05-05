@@ -1,0 +1,30 @@
+{
+  "name": "frontend",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "bcryptjs": "^3.0.3",
+    "sass": "^1.99.0",
+    "typescript": "~6.0.2",
+    "vite": "^8.0.10"
+  },
+  "dependencies": {
+    "@primevue/themes": "^4.5.4",
+    "@stomp/stompjs": "^7.3.0",
+    "@vitejs/plugin-vue": "^6.0.6",
+    "axios": "^1.15.2",
+    "chart.js": "^4.5.1",
+    "pinia": "^3.0.4",
+    "primeicons": "^7.0.0",
+    "primevue": "^4.5.5",
+    "sockjs-client": "^1.6.1",
+    "vue": "^3.5.33",
+    "vue-router": "^4.6.4"
+  }
+}

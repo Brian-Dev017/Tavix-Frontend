@@ -1,0 +1,283 @@
+// ═══════════════════════════════════════════════════════════
+//  PHANTOM AMBER 2.0 — Global CSS
+// ═══════════════════════════════════════════════════════════
+
+// ── Keyframes ────────────────────────────────────────────
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.35; }
+}
+
+@keyframes glow-pulse {
+  0%, 100% { box-shadow: 0 0 12px rgba(200, 81, 122, 0.12); }
+  50%       { box-shadow: 0 0 28px rgba(200, 81, 122, 0.3), 0 0 56px rgba(200, 81, 122, 0.12); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.92); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+@keyframes shimmer {
+  0%   { background-position: -200% center; }
+  100% { background-position:  200% center; }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50%       { transform: translateY(-8px); }
+}
+
+@keyframes border-spin {
+  to { --angle: 360deg; }
+}
+
+@keyframes orb-drift-1 {
+  0%,100% { transform: translate(0, 0) scale(1); }
+  33%     { transform: translate(20px, -30px) scale(1.1); }
+  66%     { transform: translate(-15px, 15px) scale(0.95); }
+}
+
+@keyframes orb-drift-2 {
+  0%,100% { transform: translate(0, 0) scale(1); }
+  33%     { transform: translate(-25px, 20px) scale(1.05); }
+  66%     { transform: translate(30px, -10px) scale(0.92); }
+}
+
+@keyframes count-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.9); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes skeleton-wave {
+  0%   { background-position: -400px 0; }
+  100% { background-position:  400px 0; }
+}
+
+@keyframes dot-pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50%       { transform: scale(1.7); opacity: 0.6; }
+}
+
+// ── Reset / box model ──────────────────────────────────
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+// ── Base ───────────────────────────────────────────────
+html {
+  font-size: 16px;
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  font-family: $font-body;
+  background: $bg-deep;
+  color: $text-primary;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  line-height: 1.55;
+  min-height: 100dvh;
+  overflow-x: hidden;
+}
+
+// ── Scrollbar personalizado ────────────────────────────
+::-webkit-scrollbar       { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: #d9d3ce;
+  border-radius: $r-full;
+  &:hover { background: $amber; }
+}
+
+// ── Selección de texto ─────────────────────────────────
+::selection {
+  background: $amber-bg;
+  color: $amber;
+}
+
+// ── Focus visible global ───────────────────────────────
+:focus-visible {
+  outline: 2px solid $amber;
+  outline-offset: 2px;
+  border-radius: $r-xs;
+}
+
+// ── Imágenes responsivas ───────────────────────────────
+img, video, svg {
+  display: block;
+  max-width: 100%;
+}
+
+// ── Tipografía ─────────────────────────────────────────
+h1, h2, h3, h4, h5, h6 {
+  font-family: $font-heading;
+  color: $text-primary;
+  line-height: 1.18;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+// ── Links ──────────────────────────────────────────────
+a {
+  color: $amber;
+  text-decoration: none;
+  &:hover { color: $amber-light; }
+}
+
+// ── Botones base ───────────────────────────────────────
+button {
+  font-family: $font-body;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+// ── Inputs base ────────────────────────────────────────
+input, select, textarea {
+  font-family: $font-body;
+}
+
+// ── Utility: animate-in ────────────────────────────────
+.animate-in {
+  animation: slideUp 0.3s cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+
+.animate-in-scale {
+  animation: scaleIn 0.25s cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+
+// ── Utility: skeleton ──────────────────────────────────
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    $bg-card 0%,
+    $bg-surface 50%,
+    $bg-card 100%
+  );
+  background-size: 400px 100%;
+  animation: skeleton-wave 1.4s ease infinite;
+  border-radius: $r-sm;
+}
+
+// ═══════════════════════════════════════════════════════
+//  Layout compartido entre vistas (La Flor del Tumbo pattern)
+// ═══════════════════════════════════════════════════════
+
+// Página base
+.app-page {
+  min-height: 100dvh;
+  background: $bg-deep;
+  font-family: $font-body;
+  color: $text-primary;
+  display: flex;
+  flex-direction: column;
+}
+
+// Header de página: título + acciones
+.page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  padding: 1.1rem 1.5rem;
+  background: $bg-header;
+  backdrop-filter: blur(12px) saturate(150%);
+  -webkit-backdrop-filter: blur(12px) saturate(150%);
+  border-bottom: 1px solid $border-subtle;
+  box-shadow: $shadow-sm;
+  flex-shrink: 0;
+}
+
+.page-title {
+  font-family: $font-heading;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: $text-primary;
+  letter-spacing: -0.025em;
+  line-height: 1.2;
+  margin: 0;
+}
+
+.page-subtitle {
+  font-size: 0.78rem;
+  color: $text-muted;
+  margin-top: 0.2rem;
+  line-height: 1.4;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.page-stat-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+
+  &.dot-green  { background: $c-green; }
+  &.dot-red    { background: $c-red; }
+  &.dot-amber  { background: $c-yellow; }
+  &.dot-sage   { background: $violet; }
+  &.dot-muted  { background: $text-dim; }
+}
+
+.page-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+// Cuerpo de la página (debajo del header)
+.page-body {
+  flex: 1;
+  padding: 1.5rem;
+  overflow: auto;
+}
+
+// Estado de carga genérico
+.page-loading {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  color: $text-muted;
+  font-size: 0.875rem;
+}
+
+// Spinner compartido
+.page-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid $border-medium;
+  border-top-color: $amber;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}

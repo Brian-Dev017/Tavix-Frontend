@@ -1,0 +1,224 @@
+// ═══════════════════════════════════════════════════════════
+//  PHANTOM AMBER 2.0 — Mixins
+//  Solo @mixin. Sin CSS de salida directo.
+// ═══════════════════════════════════════════════════════════
+@use "./tokens" as *;
+
+// ── Header acristalado ─────────────────────────────────
+@mixin glass-header {
+  background: $bg-header;
+  backdrop-filter: blur(12px) saturate(150%);
+  -webkit-backdrop-filter: blur(12px) saturate(150%);
+  border-bottom: 1px solid $border-subtle;
+  box-shadow: $shadow-sm;
+}
+
+// ── Tarjeta premium ───────────────────────────────────
+@mixin card {
+  background: $bg-card;
+  border: 1px solid $border-subtle;
+  border-radius: $r-lg;
+  box-shadow: $shadow-md;
+}
+
+@mixin card-alt {
+  background: $bg-card-alt;
+  border: 1px solid $border-subtle;
+  border-radius: $r-md;
+}
+
+@mixin card-lift {
+  background: $bg-card-lift;
+  border: 1px solid $border-medium;
+  border-radius: $r-lg;
+  box-shadow: $shadow-lg;
+}
+
+// ── Tarjeta con borde animado ──────────────────────────
+@mixin card-glow-border($color: $amber) {
+  border: 1px solid transparent;
+  background:
+    linear-gradient($bg-card, $bg-card) padding-box,
+    conic-gradient(from var(--angle), rgba($color, 0) 0%, $color 40%, rgba($color, 0) 60%) border-box;
+  animation: border-spin 3s linear infinite;
+}
+
+// ── Icono con fondo ámbar ──────────────────────────────
+@mixin amber-icon($size: 40px) {
+  width: $size;
+  height: $size;
+  background: linear-gradient(135deg, $amber 0%, $amber-dark 100%);
+  border-radius: $r-sm;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  font-size: calc($size * 0.45);
+  box-shadow: 0 2px 12px $amber-glow, 0 1px 4px rgba(0,0,0,0.08);
+  flex-shrink: 0;
+}
+
+// ── Botón icono ───────────────────────────────────────
+@mixin icon-btn {
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  border-radius: $r-sm;
+  background: transparent;
+  border: 1px solid $border-subtle;
+  color: $text-muted;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 0.82rem;
+  transition: $t-fast;
+  flex-shrink: 0;
+
+  &:hover {
+    background: $bg-hover;
+    border-color: $border-medium;
+    color: $text-primary;
+  }
+
+  &.danger:hover {
+    background: $c-red-bg;
+    border-color: rgba(220, 38, 38, 0.3);
+    color: $c-red;
+    box-shadow: 0 0 8px $c-red-glow;
+  }
+
+  &.back:hover {
+    border-color: $amber;
+    color: $amber;
+    box-shadow: 0 0 8px $amber-glow-sm;
+  }
+
+  &.spinning i {
+    animation: spin 0.75s linear infinite;
+  }
+}
+
+// ── Spinner de carga ──────────────────────────────────
+@mixin spinner($color: $amber, $size: 36px) {
+  width: $size;
+  height: $size;
+  border: 2.5px solid $border-subtle;
+  border-top-color: $color;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  box-shadow: 0 0 12px rgba($color, 0.3);
+  flex-shrink: 0;
+}
+
+// ── Estado vacío ──────────────────────────────────────
+@mixin empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 3.5rem 1.5rem;
+  color: $text-dim;
+  font-size: 0.85rem;
+  text-align: center;
+
+  i {
+    font-size: 2rem;
+    opacity: 0.3;
+  }
+}
+
+// ── Badge base ────────────────────────────────────────
+@mixin badge-base {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.64rem;
+  font-weight: 700;
+  padding: 0.2rem 0.55rem;
+  border-radius: $r-full;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  line-height: 1;
+}
+
+// ── Input oscuro ─────────────────────────────────────
+@mixin dark-input {
+  background: $bg-card !important;
+  border-color: $border-medium !important;
+  color: $text-primary !important;
+  border-radius: $r-sm !important;
+  transition: $t-fast !important;
+
+  &::placeholder {
+    color: $text-dim !important;
+  }
+
+  &:focus {
+    border-color: $amber !important;
+    box-shadow: 0 0 0 3px $amber-glow-sm, inset 0 0 0 1px $amber-glow-sm !important;
+    outline: none !important;
+  }
+}
+
+// ── Botón primario ámbar ─────────────────────────────
+@mixin btn-amber {
+  background: linear-gradient(135deg, $amber 0%, $amber-dark 100%);
+  color: #ffffff;
+  font-weight: 700;
+  border: none;
+  border-radius: $r-sm;
+  cursor: pointer;
+  font-family: $font-body;
+  transition: $t-normal;
+  position: relative;
+  overflow: hidden;
+
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+    background-size: 200% 100%;
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+
+  &:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 16px $amber-glow, 0 2px 6px rgba(0,0,0,0.1);
+    &::before { opacity: 1; animation: shimmer 0.6s ease; }
+  }
+
+  &:active { transform: translateY(0) scale(0.98); }
+}
+
+// ── Section header ────────────────────────────────────
+@mixin section-header {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: $text-dim;
+}
+
+// ── Stat number ───────────────────────────────────────
+@mixin stat-number {
+  font-family: $font-mono;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.03em;
+  line-height: 1;
+}
+
+@mixin skeleton {
+  background: linear-gradient(
+    90deg,
+    oklch(16% 0.013 270) 0%,
+    oklch(22% 0.018 270) 50%,
+    oklch(16% 0.013 270) 100%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-wave 1.6s ease-in-out infinite;
+}

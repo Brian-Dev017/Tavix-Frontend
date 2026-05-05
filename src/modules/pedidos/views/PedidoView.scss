@@ -1,0 +1,431 @@
+// PedidoView.scss — Phantom Amber 2.0
+
+.pedido-page {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  background: $bg-deep;
+  font-family: $font-body;
+  color: $text-primary;
+}
+
+// ── Header global ─────────────────────────────────────
+.pedido-header {
+  height: 56px;
+  padding: 0 1.25rem;
+  background: $bg-header;
+  backdrop-filter: blur(16px);
+  border-bottom: 1px solid $border-white;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+  gap: 1rem;
+  z-index: 10;
+}
+
+.pedido-header-left {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.pedido-header-right {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.icon-back {
+  @include icon-btn;
+}
+
+.header-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.05rem;
+}
+
+.header-title {
+  font-family: $font-heading;
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: $text-primary;
+  letter-spacing: -0.01em;
+}
+
+.header-sub {
+  font-family: $font-mono;
+  font-size: 0.68rem;
+  color: $text-dim;
+}
+
+.rol-chip {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  border: 1px solid;
+  border-radius: $r-full;
+  padding: 0.25rem 0.8rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  flex-shrink: 0;
+
+  i { font-size: 0.68rem; }
+}
+
+// ── Layout split ──────────────────────────────────────
+.pedido-layout {
+  display: grid;
+  grid-template-columns: 340px 1fr;
+  flex: 1;
+  overflow: hidden;
+}
+
+// ── Panel base ────────────────────────────────────────
+.menu-panel,
+.pedido-panel {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+// ── Panel izquierdo: Menú ─────────────────────────────
+.menu-panel {
+  background: $bg-card;
+  border-right: 1px solid $border-subtle;
+}
+
+// ── Panel header ──────────────────────────────────────
+.panel-header {
+  padding: 0 1.1rem;
+  height: 52px;
+  background: $bg-header;
+  backdrop-filter: blur(16px);
+  border-bottom: 1px solid $border-white;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.5rem;
+  flex-shrink: 0;
+  font-family: $font-heading;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: $text-primary;
+  letter-spacing: -0.01em;
+
+  i { color: $amber; }
+}
+
+.item-count {
+  font-family: $font-mono;
+  font-size: 0.72rem;
+  color: $text-dim;
+  font-weight: 400;
+  margin-left: auto;
+}
+
+// ── Filtro de categorías ──────────────────────────────
+.categorias {
+  display: flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+  padding: 0.7rem 0.9rem;
+  border-bottom: 1px solid $border-subtle;
+  flex-shrink: 0;
+  background: linear-gradient(180deg, $bg-card-alt 0%, transparent 100%);
+}
+
+.categoria-btn {
+  padding: 0.28rem 0.75rem;
+  border: 1px solid $border-subtle;
+  border-radius: $r-full;
+  background: transparent;
+  cursor: pointer;
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: $text-muted;
+  transition: $t-fast;
+  font-family: $font-body;
+  white-space: nowrap;
+
+  &:hover {
+    background: $bg-hover;
+    border-color: $border-medium;
+    color: $text-primary;
+  }
+
+  &.active {
+    background: $amber-bg;
+    border-color: $amber;
+    color: $amber;
+    box-shadow: 0 0 10px $amber-glow-sm;
+  }
+}
+
+// ── Campo de observación ──────────────────────────────
+.obs-field {
+  padding: 0.55rem 0.85rem;
+  border-bottom: 1px solid $border-subtle;
+  flex-shrink: 0;
+
+  label {
+    font-size: 0.67rem;
+    color: $text-dim;
+    display: block;
+    margin-bottom: 0.28rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+  }
+
+  :deep(.p-inputtext) {
+    background: $bg-card-alt !important;
+    border-color: $border-subtle !important;
+    color: $text-primary !important;
+    border-radius: $r-xs !important;
+    font-size: 0.8rem !important;
+    height: 34px !important;
+
+    &:focus {
+      border-color: $amber !important;
+      box-shadow: 0 0 0 2px $amber-glow-sm !important;
+    }
+  }
+}
+
+// ── Grid de productos ─────────────────────────────────
+.productos-grid {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0.75rem;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+  align-content: start;
+}
+
+.producto-item {
+  background: $bg-card-alt;
+  border: 1px solid $border-subtle;
+  border-radius: $r-md;
+  padding: 0.8rem 0.85rem;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  transition: all 0.18s cubic-bezier(0.34, 1.56, 0.64, 1);
+  position: relative;
+  overflow: hidden;
+
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: $amber-bg-sm;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+    pointer-events: none;
+  }
+
+  &:hover {
+    border-color: $amber;
+    transform: translateY(-2px) scale(1.02);
+    box-shadow: 0 4px 16px $amber-glow-sm;
+
+    &::before { opacity: 1; }
+  }
+
+  &:active {
+    transform: scale(0.97);
+    transition: transform 0.08s ease;
+  }
+}
+
+.prod-nombre {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: $text-primary;
+  line-height: 1.3;
+}
+
+.prod-precio {
+  font-family: $font-mono;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: $c-green;
+  font-variant-numeric: tabular-nums;
+}
+
+// ── Panel derecho: Pedido ─────────────────────────────
+.pedido-panel {
+  background: $bg-deep;
+}
+
+// ── Lista de ítems ────────────────────────────────────
+.items-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.item-row {
+  background: $bg-card;
+  border: 1px solid $border-subtle;
+  border-radius: $r-md;
+  padding: 0.72rem 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  transition: $t-fast;
+  animation: slideUp 0.2s cubic-bezier(0.4, 0, 0.2, 1) both;
+  box-shadow: $shadow-xs;
+
+  &:hover { border-color: $border-medium; }
+}
+
+.item-info {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  overflow: hidden;
+}
+
+.item-nombre {
+  font-weight: 500;
+  font-size: 0.86rem;
+  color: $text-primary;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.item-estado {
+  flex-shrink: 0;
+}
+
+.item-precio {
+  font-family: $font-mono;
+  font-weight: 700;
+  color: $c-green;
+  font-size: 0.88rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+// ── Estado vacío ──────────────────────────────────────
+.empty-pedido {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.85rem;
+  color: $text-dim;
+  font-size: 0.83rem;
+  text-align: center;
+  padding: 2rem;
+
+  i { font-size: 3rem; opacity: 0.12; }
+  p { color: $text-dim; line-height: 1.5; }
+}
+
+// ── Footer con total ──────────────────────────────────
+.pedido-footer {
+  background: $bg-card;
+  border-top: 1px solid $border-subtle;
+  padding: 0.9rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  flex-shrink: 0;
+  box-shadow: 0 -4px 16px rgba(0,0,0,0.3);
+}
+
+.footer-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.total-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: $text-dim;
+}
+
+.total-amount {
+  font-family: $font-mono;
+  font-size: 1.55rem;
+  font-weight: 700;
+  color: $c-green;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.03em;
+  text-shadow: 0 0 20px $c-green-glow;
+}
+
+// ── Loading ───────────────────────────────────────────
+.pedido-loading,
+.loading-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100dvh;
+  gap: 1.25rem;
+  color: $text-dim;
+  font-size: 0.85rem;
+  background: $bg-deep;
+
+  i { color: $amber; font-size: 2rem; }
+
+  .spinner {
+    width: 36px;
+    height: 36px;
+    border: 2.5px solid $border-subtle;
+    border-top-color: $amber;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    box-shadow: 0 0 12px $amber-glow-sm;
+  }
+}
+
+// ── Badge override ────────────────────────────────────
+:deep(.p-badge) {
+  font-size: 0.58rem !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.05em !important;
+  font-family: $font-mono !important;
+}
+
+:deep(.p-button.p-button-text) {
+  color: $amber !important;
+  font-size: 0.78rem !important;
+  font-weight: 600 !important;
+
+  &:hover { background: $amber-bg-sm !important; }
+}
+
+// ── Responsive ────────────────────────────────────────
+@media (max-width: #{$bp-desktop}) {
+  .pedido-page {
+    grid-template-columns: 1fr;
+    grid-template-rows: 1fr 1fr;
+    height: auto;
+    min-height: 100dvh;
+  }
+
+  .menu-panel { border-right: none; border-bottom: 1px solid $border-subtle; }
+  .pedido-panel { min-height: 50dvh; }
+}
+
+@media (max-width: #{$bp-mobile}) {
+  .productos-grid { grid-template-columns: 1fr 1fr; }
+}
