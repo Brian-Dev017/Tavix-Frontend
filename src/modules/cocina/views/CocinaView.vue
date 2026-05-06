@@ -2,6 +2,7 @@
 import { ref, onMounted, onUnmounted, computed } from "vue";
 import { useRouter } from "vue-router";
 import { useToast } from "primevue/usetoast";
+import { performLogout } from "@/shared/auth/logout";
 import { useAuthStore } from "@/modules/auth/store/authStore";
 import { useRol } from "@/shared/composables/useRol";
 import { Client } from "@stomp/stompjs";
@@ -12,6 +13,10 @@ const router = useRouter();
 const toast = useToast();
 const auth = useAuthStore();
 const { rolMeta, isAdmin, nombreCompleto } = useRol();
+const API_BASE_URL = (import.meta.env.VITE_API_URL as string).replace(
+  /\/$/,
+  "",
+);
 
 const cola = ref<ColaItem[]>([]);
 const loading = ref(true);
@@ -19,8 +24,8 @@ const now = ref(Date.now());
 let ticker: ReturnType<typeof setInterval>;
 let stompClient: Client | null = null;
 
-function handleLogout() {
-  auth.logout();
+async function handleLogout() {
+  await performLogout();
   router.push("/login");
 }
 
@@ -66,8 +71,13 @@ async function cargarCola() {
 }
 
 function conectarWebSocket() {
+  if (!auth.accessToken) return;
+
   stompClient = new Client({
-    webSocketFactory: () => new SockJS("http://localhost:8080/ws"),
+    webSocketFactory: () => new SockJS(`${API_BASE_URL}/ws`),
+    connectHeaders: {
+      Authorization: `Bearer ${auth.accessToken}`,
+    },
     onConnect: () => {
       stompClient?.subscribe("/topic/cocina", (msg) => {
         try {
@@ -94,6 +104,22 @@ function conectarWebSocket() {
         } catch {
           /* ignorar mensajes malformados */
         }
+      });
+    },
+    onWebSocketError: () => {
+      toast.add({
+        severity: "error",
+        summary: "Tiempo real desconectado",
+        detail: "No se pudo abrir la conexión de cocina",
+        life: 3000,
+      });
+    },
+    onStompError: () => {
+      toast.add({
+        severity: "error",
+        summary: "Acceso WebSocket denegado",
+        detail: "La sesión no pudo autenticarse para cocina",
+        life: 3000,
       });
     },
   });
@@ -125,8 +151,8 @@ async function cambiarEstado(item: ColaItem, nuevoEstado: string) {
   }
 }
 
-onMounted(() => {
-  cargarCola();
+onMounted(async () => {
+  await cargarCola();
   conectarWebSocket();
   ticker = setInterval(() => {
     now.value = Date.now();

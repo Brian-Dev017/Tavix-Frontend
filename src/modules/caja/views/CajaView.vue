@@ -2,7 +2,7 @@
 import { ref, computed, onMounted } from "vue";
 import { useRouter } from "vue-router";
 import { useToast } from "primevue/usetoast";
-import { useAuthStore } from "@/modules/auth/store/authStore";
+import { performLogout } from "@/shared/auth/logout";
 import { useRol } from "@/shared/composables/useRol";
 import { cajaApi, type PedidoResumen } from "@/modules/caja/api/cajaApi";
 import Button from "primevue/button";
@@ -11,7 +11,6 @@ import Select from "primevue/select";
 
 const router = useRouter();
 const toast = useToast();
-const auth = useAuthStore();
 const { rolMeta, isAdmin, nombreCompleto } = useRol();
 
 const pedidos = ref<PedidoResumen[]>([]);
@@ -74,8 +73,8 @@ function cancelarSeleccion() {
   pedidoSeleccionado.value = null;
 }
 
-function handleLogout() {
-  auth.logout();
+async function handleLogout() {
+  await performLogout();
   router.push("/login");
 }
 

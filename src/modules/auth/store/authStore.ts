@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
+import { decodeJwtPayload } from '@/shared/auth/jwt'
 
 export interface AuthUser {
   nombre: string
@@ -11,13 +12,8 @@ const LS_TOKEN = 'auth_token'
 const LS_USER  = 'auth_user'
 
 function parseJwtSub(token: string | null): number | null {
-  if (!token) return null
-  try {
-    const payload = JSON.parse(atob(token.split('.')[1]))
-    return payload.sub ? Number(payload.sub) : null
-  } catch {
-    return null
-  }
+  const payload = decodeJwtPayload(token)
+  return payload?.sub ? Number(payload.sub) : null
 }
 
 const VALID_ROLES = ['AD', 'ME', 'CO', 'CA']

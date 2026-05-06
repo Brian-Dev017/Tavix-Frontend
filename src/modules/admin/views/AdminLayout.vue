@@ -1,16 +1,15 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { useRouter, useRoute } from "vue-router";
-import { useAuthStore } from "@/modules/auth/store/authStore";
+import { performLogout } from "@/shared/auth/logout";
 import { useRol } from "@/shared/composables/useRol";
 
 const router = useRouter();
 const route = useRoute();
-const auth = useAuthStore();
 const { rolMeta, nombreCompleto } = useRol();
 
-function handleLogout() {
-  auth.logout();
+async function handleLogout() {
+  await performLogout();
   router.push("/login");
 }
 

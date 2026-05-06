@@ -1,5 +1,6 @@
 import axios from 'axios'
 import { useAuthStore } from '@/modules/auth/store/authStore'
+import { decodeJwtPayload } from '@/shared/auth/jwt'
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL as string,
@@ -9,12 +10,8 @@ const api = axios.create({
 /** Comprueba si el JWT ya expiró sin hacer una petición al servidor */
 function isTokenExpired(token: string | null): boolean {
   if (!token) return true
-  try {
-    const payload = JSON.parse(atob(token.split('.')[1]))
-    return payload.exp ? payload.exp * 1000 < Date.now() : false
-  } catch {
-    return true
-  }
+  const payload = decodeJwtPayload(token)
+  return payload?.exp ? payload.exp * 1000 < Date.now() : true
 }
 
 api.interceptors.request.use((config) => {
@@ -38,7 +35,7 @@ api.interceptors.response.use(
       original._retry = true
       try {
         const res = await axios.post(
-          'http://localhost:8080/api/auth/refresh',
+          `${import.meta.env.VITE_API_URL}/api/auth/refresh`,
           {},
           { withCredentials: true }
         )

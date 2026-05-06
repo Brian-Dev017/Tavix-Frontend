@@ -3,13 +3,12 @@ import { ref, computed, onMounted } from "vue";
 import { useRouter } from "vue-router";
 import { useToast } from "primevue/usetoast";
 import { mesasApi, type MesaDTO } from "@/modules/mesas/api/mesasApi";
-import { useAuthStore } from "@/modules/auth/store/authStore";
+import { performLogout } from "@/shared/auth/logout";
 import { useRol } from "@/shared/composables/useRol";
 import MesaCard from "@/modules/mesas/components/MesaCard.vue";
 
 const router = useRouter();
 const toast = useToast();
-const auth = useAuthStore();
 const { rolMeta, isAdmin, nombreCompleto } = useRol();
 
 const mesas = ref<MesaDTO[]>([]);
@@ -70,8 +69,8 @@ async function handleMesaClick(mesa: MesaDTO) {
   }
 }
 
-function handleLogout() {
-  auth.logout();
+async function handleLogout() {
+  await performLogout();
   router.push("/login");
 }
 

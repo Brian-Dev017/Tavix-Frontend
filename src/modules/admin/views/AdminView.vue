@@ -2,7 +2,7 @@
 import { ref, onMounted } from "vue";
 import { useRouter } from "vue-router";
 import { useToast } from "primevue/usetoast";
-import { useAuthStore } from "@/modules/auth/store/authStore";
+import { performLogout } from "@/shared/auth/logout";
 import { useRol } from "@/shared/composables/useRol";
 import Toast from "primevue/toast";
 import Button from "primevue/button";
@@ -29,7 +29,6 @@ import ProductosTable from "@/modules/admin/components/ProductosTable.vue";
 
 const router = useRouter();
 const toast = useToast();
-const auth = useAuthStore();
 const confirm = useConfirm();
 const { rolMeta, nombreCompleto } = useRol();
 
@@ -81,8 +80,8 @@ const usuariosActivos = () => usuarios.value.filter((u) => u.activo).length;
 const productosDisponibles = () =>
   productos.value.filter((p) => p.disponible).length;
 
-function handleLogout() {
-  auth.logout();
+async function handleLogout() {
+  await performLogout();
   router.push("/login");
 }
 
