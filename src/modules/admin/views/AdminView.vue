@@ -282,7 +282,7 @@ onMounted(cargarTodo);
             class="pi pi-shield"
             style="color: #d67b93; margin-right: 0.4rem; font-size: 1rem"
           ></i>
-          Tavixx — Panel Admin
+          Tavix — Panel Administrador
         </h1>
         <p class="page-subtitle">{{ nombreCompleto }}</p>
       </div>

@@ -12,7 +12,7 @@ import App from './App.vue'
 import router from './shared/router/index'
 
 // Preset personalizado: paleta rose como primaria, sage como secundaria
-const TavixxPreset = definePreset(Aura, {
+const TavixPreset = definePreset(Aura, {
   semantic: {
     primary: {
       50:  '#fdf2f6',
@@ -54,7 +54,7 @@ app.use(createPinia())
 app.use(router)
 app.use(PrimeVue, {
   theme: {
-    preset: TavixxPreset,
+    preset: TavixPreset,
     options: { darkModeSelector: '.dark-mode' }
   }
 })

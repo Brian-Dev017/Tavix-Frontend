@@ -119,7 +119,7 @@ router.beforeEach((to, _from, next) => {
 
 router.afterEach((to) => {
   const pageTitle = to.meta.title as string | undefined
-  document.title = pageTitle ? `${pageTitle} — Tavixx` : 'Tavixx'
+  document.title = pageTitle ? `${pageTitle} — Tavix` : 'Tavix'
 })
 
 export default router

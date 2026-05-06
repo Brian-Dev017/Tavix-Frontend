@@ -74,8 +74,7 @@ async function handleLogin() {
             <i class="pi pi-bolt"></i>
           </div>
           <div>
-            <h1 class="login-brand-name">Tavixx</h1>
-            <p class="login-brand-sub">Gestión · POS · Tiempo Real</p>
+            <h1 class="login-brand-name">Tavix</h1>
           </div>
         </div>
 
