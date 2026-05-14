@@ -2,10 +2,12 @@
 import { computed } from "vue";
 import { useRouter, useRoute } from "vue-router";
 import { performLogout } from "@/shared/auth/logout";
+import { useAuthStore } from "@/modules/auth/store/authStore";
 import { useRol } from "@/shared/composables/useRol";
 
 const router = useRouter();
 const route = useRoute();
+const auth = useAuthStore();
 const { rolMeta, nombreCompleto } = useRol();
 
 async function handleLogout() {

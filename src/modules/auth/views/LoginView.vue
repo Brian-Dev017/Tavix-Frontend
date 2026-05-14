@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref } from "vue";
 import { useRouter } from "vue-router";
-import { useAuthStore } from "@/modules/auth/store/authStore";
+import { normalizeAuthRole, useAuthStore } from "@/modules/auth/store/authStore";
 import { authApi } from "@/modules/auth/api/authApi";
 import InputText from "primevue/inputtext";
 import Password from "primevue/password";
@@ -32,15 +32,19 @@ async function handleLogin() {
       );
     }
     const { accessToken, rol, nombre, apellido } = data;
+    const normalizedRole = normalizeAuthRole(rol);
+    if (!normalizedRole) {
+      throw new Error(`Rol no reconocido: ${rol}`);
+    }
     auth.setAccessToken(accessToken);
-    auth.setUser({ nombre, apellido, rol: rol as "AD" | "ME" | "CO" | "CA" });
+    auth.setUser({ nombre, apellido, rol: normalizedRole });
     const routes: Record<string, string> = {
       ME: "/mesas",
       CO: "/cocina",
       CA: "/caja",
       AD: "/admin",
     };
-    await router.push(routes[rol] ?? "/mesas");
+    await router.push(routes[normalizedRole]);
   } catch (e: unknown) {
     console.error("[login] error:", e);
     const err = e as {

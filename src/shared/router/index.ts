@@ -1,5 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import { useAuthStore } from '@/modules/auth/store/authStore'
+import { normalizeAuthRole, useAuthStore } from '@/modules/auth/store/authStore'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -84,7 +84,7 @@ const router = createRouter({
 })
 
 function getRolDefaultRoute(rol?: string): string {
-  switch (rol) {
+  switch (normalizeAuthRole(rol)) {
     case 'ME': return '/mesas'
     case 'CO': return '/cocina'
     case 'CA': return '/caja'
