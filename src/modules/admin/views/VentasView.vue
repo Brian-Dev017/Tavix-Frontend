@@ -9,6 +9,7 @@ import {
   reportesApi,
   type ReporteVentas,
 } from "@/modules/admin/api/reportesApi";
+import { firstError } from "@/shared/validation/inputValidation";
 
 const toast = useToast();
 
@@ -35,6 +36,20 @@ function fmtSol(n: number | null | undefined) {
 }
 
 async function cargar() {
+  const validationError = firstError([
+    !(desde.value instanceof Date) && "Fecha desde no es válida",
+    !(hasta.value instanceof Date) && "Fecha hasta no es válida",
+    desde.value > hasta.value && "Fecha desde no puede ser mayor que fecha hasta",
+  ]);
+  if (validationError) {
+    toast.add({
+      severity: "warn",
+      summary: "Revisa el rango",
+      detail: validationError,
+      life: 3000,
+    });
+    return;
+  }
   loading.value = true;
   try {
     const res = await reportesApi.getVentas(

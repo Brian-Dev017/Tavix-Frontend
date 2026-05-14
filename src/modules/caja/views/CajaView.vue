@@ -8,6 +8,15 @@ import { cajaApi, type PedidoResumen } from "@/modules/caja/api/cajaApi";
 import Button from "primevue/button";
 import InputText from "primevue/inputtext";
 import Select from "primevue/select";
+import {
+  cleanText,
+  dni,
+  firstError,
+  maxLength,
+  oneOf,
+  onlyDigits,
+  ruc,
+} from "@/shared/validation/inputValidation";
 
 const router = useRouter();
 const toast = useToast();
@@ -80,11 +89,27 @@ async function handleLogout() {
 
 async function cobrar() {
   if (!pedidoSeleccionado.value) return;
-  if (requiereDatos.value && !rucDni.value) {
+  const validationError = firstError([
+    oneOf(
+      tipoComprobante.value,
+      tiposComprobante.map((t) => t.value),
+      "Tipo de comprobante",
+    ),
+    oneOf(
+      metodoPago.value,
+      metodosPago.map((m) => m.value),
+      "Método de pago",
+    ),
+    tipoComprobante.value === "F" && ruc(rucDni.value),
+    tipoComprobante.value === "B" && dni(rucDni.value),
+    requiereDatos.value && maxLength(razonSocial.value, "Razón social / Nombre", 120),
+    maxLength(direccion.value, "Dirección", 160),
+  ]);
+  if (validationError) {
     toast.add({
       severity: "warn",
-      summary: "Datos requeridos",
-      detail: "Ingresa el RUC/DNI del cliente",
+      summary: "Revisa el comprobante",
+      detail: validationError,
       life: 3000,
     });
     return;
@@ -97,9 +122,9 @@ async function cobrar() {
       metodoPago: metodoPago.value,
       datosComprobante: requiereDatos.value
         ? {
-            rucDni: rucDni.value,
-            razonSocial: razonSocial.value,
-            direccion: direccion.value,
+            rucDni: onlyDigits(rucDni.value),
+            razonSocial: cleanText(razonSocial.value),
+            direccion: cleanText(direccion.value),
           }
         : undefined,
     };

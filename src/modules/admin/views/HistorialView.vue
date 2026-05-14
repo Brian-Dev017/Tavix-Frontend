@@ -8,6 +8,7 @@ import {
   reportesApi,
   type ComprobanteHistorial,
 } from "@/modules/admin/api/reportesApi";
+import { oneOf } from "@/shared/validation/inputValidation";
 
 const toast = useToast();
 
@@ -27,6 +28,20 @@ const estadoOpts = [
 const estadoFiltro = ref("");
 
 async function cargar(p = 0) {
+  const validationError = oneOf(
+    estadoFiltro.value,
+    estadoOpts.map((e) => e.value),
+    "Estado",
+  );
+  if (validationError) {
+    toast.add({
+      severity: "warn",
+      summary: "Revisa el filtro",
+      detail: validationError,
+      life: 3000,
+    });
+    return;
+  }
   loading.value = true;
   try {
     const res = await reportesApi.getHistorial(

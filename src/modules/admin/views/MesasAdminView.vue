@@ -1,18 +1,18 @@
 <script setup lang="ts">
-import { ref, onMounted } from "vue";
+import { computed, ref, onMounted } from "vue";
 import { useToast } from "primevue/usetoast";
 import { useConfirm } from "primevue/useconfirm";
 import Toast from "primevue/toast";
 import ConfirmDialog from "primevue/confirmdialog";
 import Button from "primevue/button";
 import Dialog from "primevue/dialog";
-import InputText from "primevue/inputtext";
 import InputNumber from "primevue/inputnumber";
 import {
   adminApi,
   type MesaAdmin,
   type GuardarMesaRequest,
 } from "@/modules/admin/api/adminApi";
+import { firstError, required } from "@/shared/validation/inputValidation";
 
 const toast = useToast();
 const confirm = useConfirm();
@@ -23,7 +23,15 @@ const dialog = ref(false);
 const esEdicion = ref(false);
 const saving = ref(false);
 const editId = ref(0);
-const form = ref<GuardarMesaRequest>({ numero: "", capacidad: 2 });
+
+// Mesa: número entero (null al inicio), Capacidad: null al inicio
+const form = ref<{ numero: number | null; capacidad: number | null }>({
+  numero: null,
+  capacidad: null,
+});
+
+// Controla si el usuario ya salió del campo capacidad (blur) para mostrar error
+const capacidadTocada = ref(false);
 
 const ESTADO_STYLE: Record<
   MesaAdmin["estado"],
@@ -34,6 +42,11 @@ const ESTADO_STYLE: Record<
   RESERVADA: { label: "Reservada", cls: "badge--amber" },
   INACTIVA: { label: "Inactiva", cls: "badge--gray" },
 };
+
+// Solo se puede editar/eliminar si la mesa está DISPONIBLE o RESERVADA
+function puedeEditarEliminar(m: MesaAdmin): boolean {
+  return m.estado === "DISPONIBLE" || m.estado === "RESERVADA";
+}
 
 async function cargar() {
   loading.value = true;
@@ -52,37 +65,110 @@ async function cargar() {
 }
 
 function abrirCrear() {
-  form.value = { numero: "", capacidad: 2 };
+  form.value = { numero: null, capacidad: null };
+  capacidadTocada.value = false;
   esEdicion.value = false;
   dialog.value = true;
 }
 
 function abrirEditar(m: MesaAdmin) {
+  if (!puedeEditarEliminar(m)) return;
   editId.value = m.id;
-  form.value = { numero: m.numero, capacidad: m.capacidad };
+  // numero de mesa como entero
+  form.value = { numero: Number(m.numero), capacidad: m.capacidad };
+  capacidadTocada.value = false;
   esEdicion.value = true;
   dialog.value = true;
 }
 
+// ── Validaciones ─────────────────────────────────────────────────────────────
+
+const numeroMesaDuplicado = computed(() => {
+  if (form.value.numero === null) return false;
+  const numero = String(form.value.numero);
+  return mesas.value.some(
+    (m) =>
+      String(m.numero) === numero &&
+      (!esEdicion.value || m.id !== editId.value),
+  );
+});
+
+const numeroMesaError = computed(() =>
+  numeroMesaDuplicado.value
+    ? "Ingrese otro número de mesa, esa mesa ya fue creada"
+    : "",
+);
+
+// Validez real de capacidad (sin depender de si fue tocado, para el botón)
+const capacidadEsValida = computed(() => {
+  const val = form.value.capacidad;
+  if (val === null || val === undefined) return false;
+  if (!Number.isInteger(val)) return false;
+  if (val < 2 || val > 9) return false;
+  return true;
+});
+
+// Error de capacidad: solo se muestra después del blur
+const capacidadMesaError = computed(() => {
+  if (!capacidadTocada.value) return "";
+  const val = form.value.capacidad;
+  if (val === null || val === undefined) return "La capacidad es requerida";
+  if (!Number.isInteger(val)) return "La capacidad debe ser un número entero";
+  if (val < 2 || val > 9) return "La capacidad mínima es 2 y máxima 9";
+  return "";
+});
+
+// Botón habilitado solo cuando el formulario es completamente válido
+const formValido = computed(() => {
+  if (form.value.numero === null) return false;
+  if (numeroMesaError.value) return false;
+  if (!capacidadEsValida.value) return false;
+  return true;
+});
+
+function onCapacidadBlur() {
+  // Se activa en cuanto el valor cambia (update:modelValue), no al perder foco
+  capacidadTocada.value = true;
+}
+
+// ── Guardar ───────────────────────────────────────────────────────────────────
+
 async function guardar() {
-  if (!form.value.numero.trim()) {
+  // Forzar validación de capacidad al intentar guardar
+  capacidadTocada.value = true;
+
+  const numeroStr =
+    form.value.numero !== null ? String(form.value.numero) : "";
+
+  const validationError = firstError([
+    required(numeroStr, "Número de mesa"),
+    numeroMesaError.value,
+    form.value.capacidad === null
+      ? "La capacidad es requerida"
+      : capacidadMesaError.value,
+  ]);
+
+  if (validationError) {
     toast.add({
       severity: "warn",
-      summary: "El número de mesa es requerido",
+      summary: "Revisa el formulario",
+      detail: validationError,
       life: 2500,
     });
     return;
   }
-  if (form.value.capacidad < 1) {
-    toast.add({ severity: "warn", summary: "Capacidad mínima: 1", life: 2500 });
-    return;
-  }
+
+  const payload: GuardarMesaRequest = {
+    numero: numeroStr,
+    capacidad: Number(form.value.capacidad),
+  };
+
   saving.value = true;
   try {
     if (esEdicion.value) {
-      await adminApi.actualizarMesa(editId.value, form.value);
+      await adminApi.actualizarMesa(editId.value, payload);
     } else {
-      await adminApi.crearMesa(form.value);
+      await adminApi.crearMesa(payload);
     }
     toast.add({
       severity: "success",
@@ -104,6 +190,8 @@ async function guardar() {
   }
 }
 
+// ── Toggle / Eliminar ─────────────────────────────────────────────────────────
+
 async function toggleMesa(m: MesaAdmin) {
   try {
     await adminApi.toggleEstadoMesa(m.id);
@@ -120,6 +208,7 @@ async function toggleMesa(m: MesaAdmin) {
 }
 
 function confirmarEliminar(m: MesaAdmin) {
+  if (!puedeEditarEliminar(m)) return;
   confirm.require({
     message: `¿Eliminar la mesa "${m.numero}"? Esta acción es irreversible.`,
     header: "Confirmar eliminación",
@@ -185,7 +274,13 @@ onMounted(cargar);
           ><i class="pi pi-user"></i> {{ m.capacidad }} personas</span
         >
         <div class="mesa-actions">
-          <button class="mesa-btn" title="Editar" @click="abrirEditar(m)">
+          <button
+            class="mesa-btn"
+            title="Editar"
+            :disabled="!puedeEditarEliminar(m)"
+            :class="{ 'mesa-btn--disabled': !puedeEditarEliminar(m) }"
+            @click="abrirEditar(m)"
+          >
             <i class="pi pi-pencil"></i>
           </button>
           <button
@@ -198,6 +293,8 @@ onMounted(cargar);
           <button
             class="mesa-btn mesa-btn--danger"
             title="Eliminar"
+            :disabled="!puedeEditarEliminar(m)"
+            :class="{ 'mesa-btn--disabled': !puedeEditarEliminar(m) }"
             @click="confirmarEliminar(m)"
           >
             <i class="pi pi-trash"></i>
@@ -213,14 +310,42 @@ onMounted(cargar);
       modal
       :style="{ width: '20rem' }"
     >
+      <!-- Número de mesa: solo enteros -->
       <div class="form-field">
-        <label>Número / identificador</label>
-        <InputText v-model="form.numero" placeholder="Ej. 1, A1, VIP" fluid />
+        <label>Número de mesa</label>
+        <InputNumber
+          v-model="form.numero"
+          :useGrouping="false"
+          :minFractionDigits="0"
+          :maxFractionDigits="0"
+          :allowEmpty="true"
+          :min="1"
+          placeholder="Ej. 1, 2, 3"
+          fluid
+        />
+        <small v-if="numeroMesaError" class="field-error">
+          {{ numeroMesaError }}
+        </small>
       </div>
+
+      <!-- Capacidad: inicia vacío, error aparece al salir del campo (blur) -->
       <div class="form-field" style="margin-top: 0.75rem">
         <label>Capacidad (personas)</label>
-        <InputNumber v-model="form.capacidad" :min="1" :max="50" fluid />
+        <InputNumber
+          v-model="form.capacidad"
+          :useGrouping="false"
+          :minFractionDigits="0"
+          :maxFractionDigits="0"
+          :allowEmpty="true"
+          placeholder="Ej. 4"
+          fluid
+          @update:modelValue="onCapacidadBlur"
+        />
+        <small v-if="capacidadMesaError" class="field-error">
+          {{ capacidadMesaError }}
+        </small>
       </div>
+
       <template #footer>
         <Button
           label="Cancelar"
@@ -234,6 +359,7 @@ onMounted(cargar);
           icon="pi pi-check"
           size="small"
           :loading="saving"
+          :disabled="!formValido"
           @click="guardar"
         />
       </template>
@@ -377,6 +503,12 @@ onMounted(cargar);
     color: $text-primary;
   }
 
+  &--disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+    pointer-events: none;
+  }
+
   &--danger:hover {
     background: $c-red-bg;
     border-color: $c-red;
@@ -391,5 +523,13 @@ onMounted(cargar);
     color: $text-muted;
     margin-bottom: 0.3rem;
   }
+}
+
+.field-error {
+  display: block;
+  margin-top: 0.3rem;
+  color: $c-red;
+  font-size: 0.72rem;
+  line-height: 1.25;
 }
 </style>

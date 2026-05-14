@@ -14,6 +14,12 @@ import {
   type GuardarCategoriaRequest,
   type ProductoAdmin,
 } from "@/modules/admin/api/adminApi";
+import {
+  cleanText,
+  firstError,
+  maxLength,
+  nameText,
+} from "@/shared/validation/inputValidation";
 
 const toast = useToast();
 const confirm = useConfirm();
@@ -65,20 +71,29 @@ function abrirEditar(c: CategoriaAdmin) {
 }
 
 async function guardar() {
-  if (!form.value.nombre.trim()) {
+  const validationError = firstError([
+    nameText(form.value.nombre, "Nombre"),
+    maxLength(form.value.descripcion, "Descripción", 250),
+  ]);
+  if (validationError) {
     toast.add({
       severity: "warn",
-      summary: "El nombre es requerido",
+      summary: "Revisa el formulario",
+      detail: validationError,
       life: 2500,
     });
     return;
   }
   saving.value = true;
   try {
+    const payload: GuardarCategoriaRequest = {
+      nombre: cleanText(form.value.nombre),
+      descripcion: cleanText(form.value.descripcion),
+    };
     if (esEdicion.value) {
-      await adminApi.actualizarCategoria(editId.value, form.value);
+      await adminApi.actualizarCategoria(editId.value, payload);
     } else {
-      await adminApi.crearCategoria(form.value);
+      await adminApi.crearCategoria(payload);
     }
     toast.add({
       severity: "success",

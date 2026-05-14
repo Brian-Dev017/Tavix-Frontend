@@ -12,6 +12,7 @@ import { pedidosApi, type ItemPedido } from "@/modules/pedidos/api/pedidosApi";
 import Button from "primevue/button";
 import InputText from "primevue/inputtext";
 import Badge from "primevue/badge";
+import { cleanText, maxLength } from "@/shared/validation/inputValidation";
 
 const route = useRoute();
 const router = useRouter();
@@ -65,13 +66,23 @@ onMounted(async () => {
 
 async function agregarProducto(producto: ProductoDTO) {
   if (!pedidoId.value) return;
+  const validationError = maxLength(observacion.value, "Observación", 180);
+  if (validationError) {
+    toast.add({
+      severity: "warn",
+      summary: "Revisa la observación",
+      detail: validationError,
+      life: 3000,
+    });
+    return;
+  }
   agregando.value = true;
   try {
     const res = await pedidosApi.agregarItem(
       pedidoId.value,
       producto.id,
       1,
-      observacion.value,
+      cleanText(observacion.value),
     );
     items.value.push(res.data.data);
     observacion.value = "";

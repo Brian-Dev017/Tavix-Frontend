@@ -3,6 +3,7 @@ import { ref } from "vue";
 import { useRouter } from "vue-router";
 import { normalizeAuthRole, useAuthStore } from "@/modules/auth/store/authStore";
 import { authApi } from "@/modules/auth/api/authApi";
+import { cleanText, firstError, password, username } from "@/shared/validation/inputValidation";
 import InputText from "primevue/inputtext";
 import Password from "primevue/password";
 import Button from "primevue/button";
@@ -17,12 +18,19 @@ const loading = ref(false);
 const error = ref("");
 
 async function handleLogin() {
-  if (!usuario.value || !contrasena.value) return;
+  const validationError = firstError([
+    username(usuario.value),
+    password(contrasena.value),
+  ]);
+  if (validationError) {
+    error.value = validationError;
+    return;
+  }
   loading.value = true;
   error.value = "";
   try {
     const res = await authApi.login({
-      usuario: usuario.value,
+      usuario: cleanText(usuario.value),
       contrasena: contrasena.value,
     });
     const data = res?.data?.data;

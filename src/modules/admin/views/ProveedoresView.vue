@@ -12,6 +12,16 @@ import {
   type Proveedor,
   type GuardarProveedorRequest,
 } from "@/modules/admin/api/proveedoresApi";
+import {
+  cleanText,
+  email,
+  firstError,
+  maxLength,
+  nameText,
+  phone,
+  ruc,
+  onlyDigits,
+} from "@/shared/validation/inputValidation";
 
 const toast = useToast();
 const confirm = useConfirm();
@@ -67,10 +77,18 @@ function abrirEditar(p: Proveedor) {
 }
 
 async function guardar() {
-  if (!form.value.nombre.trim()) {
+  const validationError = firstError([
+    nameText(form.value.nombre, "Nombre"),
+    form.value.ruc && ruc(form.value.ruc),
+    phone(form.value.telefono),
+    email(form.value.correo),
+    maxLength(form.value.contacto, "Contacto", 80),
+  ]);
+  if (validationError) {
     toast.add({
       severity: "warn",
-      summary: "El nombre es requerido",
+      summary: "Revisa el formulario",
+      detail: validationError,
       life: 3000,
     });
     return;
@@ -78,11 +96,11 @@ async function guardar() {
   saving.value = true;
   try {
     const req: GuardarProveedorRequest = {
-      nombre: form.value.nombre,
-      ...(form.value.ruc ? { ruc: form.value.ruc } : {}),
-      ...(form.value.telefono ? { telefono: form.value.telefono } : {}),
-      ...(form.value.correo ? { correo: form.value.correo } : {}),
-      ...(form.value.contacto ? { contacto: form.value.contacto } : {}),
+      nombre: cleanText(form.value.nombre),
+      ...(form.value.ruc ? { ruc: onlyDigits(form.value.ruc) } : {}),
+      ...(form.value.telefono ? { telefono: cleanText(form.value.telefono) } : {}),
+      ...(form.value.correo ? { correo: cleanText(form.value.correo) } : {}),
+      ...(form.value.contacto ? { contacto: cleanText(form.value.contacto) } : {}),
     };
     if (esEdicion.value && editId.value !== null) {
       await proveedoresApi.actualizar(editId.value, req);

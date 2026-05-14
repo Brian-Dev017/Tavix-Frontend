@@ -9,6 +9,16 @@ import {
   configuracionApi,
   type NegocioConfig,
 } from "@/modules/admin/api/configuracionApi";
+import {
+  cleanText,
+  firstError,
+  httpUrl,
+  maxLength,
+  nameText,
+  numberRange,
+  onlyDigits,
+  ruc,
+} from "@/shared/validation/inputValidation";
 
 const toast = useToast();
 const loading = ref(false);
@@ -40,14 +50,30 @@ async function cargar() {
 }
 
 async function guardar() {
+  const validationError = firstError([
+    ruc(form.value.rucNegocio),
+    nameText(form.value.nombreComercial, "Nombre comercial"),
+    maxLength(form.value.direccion, "Dirección", 160),
+    httpUrl(form.value.logoUrl, "URL del logo"),
+    numberRange(form.value.igvPorcentaje, "IGV", 0, 100),
+  ]);
+  if (validationError) {
+    toast.add({
+      severity: "warn",
+      summary: "Revisa los datos",
+      detail: validationError,
+      life: 3000,
+    });
+    return;
+  }
   saving.value = true;
   try {
     await configuracionApi.updateNegocio({
-      rucNegocio: form.value.rucNegocio,
-      nombreComercial: form.value.nombreComercial,
-      direccion: form.value.direccion,
-      logoUrl: form.value.logoUrl,
-      igvPorcentaje: form.value.igvPorcentaje,
+      rucNegocio: onlyDigits(form.value.rucNegocio),
+      nombreComercial: cleanText(form.value.nombreComercial),
+      direccion: cleanText(form.value.direccion),
+      logoUrl: cleanText(form.value.logoUrl),
+      igvPorcentaje: Number(form.value.igvPorcentaje),
     });
     toast.add({
       severity: "success",

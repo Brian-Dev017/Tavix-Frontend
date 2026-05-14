@@ -16,6 +16,14 @@ import Tag from "primevue/tag";
 import ToggleSwitch from "primevue/toggleswitch";
 import ConfirmDialog from "primevue/confirmdialog";
 import { useConfirm } from "primevue/useconfirm";
+import {
+  cleanText,
+  firstError,
+  httpUrl,
+  maxLength,
+  money,
+  nameText,
+} from "@/shared/validation/inputValidation";
 
 interface CategoriaOpcion {
   id: number;
@@ -67,6 +75,33 @@ function abrirEditar(p: ProductoAdmin) {
 }
 
 async function guardar() {
+  const categoriaExiste = props.categorias.some(
+    (c) => c.id === form.value.categoriaId,
+  );
+  const validationError = firstError([
+    nameText(form.value.nombre, "Nombre"),
+    !categoriaExiste && "Selecciona una categoría válida",
+    money(form.value.precio, "Precio"),
+    Number(form.value.precio) <= 0 && "Precio debe ser mayor a 0",
+    maxLength(form.value.descripcion, "Descripción", 250),
+    httpUrl(form.value.imagenUrl, "URL de imagen"),
+  ]);
+  if (validationError) {
+    toast.add({
+      severity: "warn",
+      summary: "Revisa el formulario",
+      detail: validationError,
+      life: 3000,
+    });
+    return;
+  }
+  form.value = {
+    ...form.value,
+    nombre: cleanText(form.value.nombre),
+    descripcion: cleanText(form.value.descripcion),
+    imagenUrl: cleanText(form.value.imagenUrl),
+    precio: Number(form.value.precio),
+  };
   if (!form.value.nombre || !form.value.categoriaId || !form.value.precio) {
     toast.add({
       severity: "warn",

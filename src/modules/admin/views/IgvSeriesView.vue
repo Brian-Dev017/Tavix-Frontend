@@ -15,6 +15,13 @@ import {
   type SerieComprobante,
   type NegocioConfig,
 } from "@/modules/admin/api/configuracionApi";
+import {
+  cleanText,
+  firstError,
+  numberRange,
+  oneOf,
+  required,
+} from "@/shared/validation/inputValidation";
 
 const toast = useToast();
 const confirm = useConfirm();
@@ -85,18 +92,36 @@ function abrirEditar(s: SerieComprobante) {
 }
 
 async function guardar() {
-  if (!form.value.serie.trim()) {
+  const serie = cleanText(form.value.serie).toUpperCase();
+  const validationError = firstError([
+    oneOf(
+      form.value.tipo,
+      TIPOS.map((t) => t.value),
+      "Tipo",
+    ),
+    required(serie, "Serie"),
+    !new RegExp(`^${form.value.tipo}\\d{3}$`).test(serie) &&
+      `Serie debe tener el formato ${form.value.tipo}001`,
+    numberRange(form.value.correlativoActual, "Correlativo", 1, 999999999),
+  ]);
+  if (validationError) {
     toast.add({
       severity: "warn",
-      summary: "La serie es obligatoria",
+      summary: "Revisa el formulario",
+      detail: validationError,
       life: 3000,
     });
     return;
   }
   saving.value = true;
   try {
+    const payload = {
+      ...form.value,
+      serie,
+      correlativoActual: Number(form.value.correlativoActual),
+    };
     if (esEdit.value && editId.value !== null) {
-      await configuracionApi.actualizarSerie(editId.value, form.value);
+      await configuracionApi.actualizarSerie(editId.value, payload);
       toast.add({
         severity: "success",
         summary: "Serie actualizada",
@@ -104,7 +129,7 @@ async function guardar() {
       });
     } else {
       await configuracionApi.crearSerie(
-        form.value as Omit<SerieComprobante, "id">,
+        payload as Omit<SerieComprobante, "id">,
       );
       toast.add({ severity: "success", summary: "Serie creada", life: 2500 });
     }
@@ -145,6 +170,16 @@ function confirmarEliminar(s: SerieComprobante) {
 }
 
 async function guardarIgv() {
+  const validationError = numberRange(igvVal.value, "IGV", 0, 100);
+  if (validationError) {
+    toast.add({
+      severity: "warn",
+      summary: "Revisa el IGV",
+      detail: validationError,
+      life: 3000,
+    });
+    return;
+  }
   saving.value = true;
   try {
     await configuracionApi.updateNegocio({ igvPorcentaje: igvVal.value });

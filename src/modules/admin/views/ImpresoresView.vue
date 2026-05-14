@@ -14,6 +14,14 @@ import {
   configuracionApi,
   type Impresora,
 } from "@/modules/admin/api/configuracionApi";
+import {
+  cleanText,
+  firstError,
+  host,
+  nameText,
+  numberRange,
+  oneOf,
+} from "@/shared/validation/inputValidation";
 
 const toast = useToast();
 const confirm = useConfirm();
@@ -100,10 +108,21 @@ function abrirEditar(imp: Impresora) {
 }
 
 async function guardar() {
-  if (!form.value.nombre.trim()) {
+  const validationError = firstError([
+    nameText(form.value.nombre, "Nombre"),
+    oneOf(
+      form.value.tipo,
+      TIPOS.map((t) => t.value),
+      "Tipo",
+    ),
+    host(form.value.host, "Dirección IP"),
+    form.value.host && numberRange(form.value.puerto, "Puerto", 1, 65535),
+  ]);
+  if (validationError) {
     toast.add({
       severity: "warn",
-      summary: "El nombre es obligatorio",
+      summary: "Revisa el formulario",
+      detail: validationError,
       life: 3000,
     });
     return;
@@ -111,10 +130,10 @@ async function guardar() {
   saving.value = true;
   try {
     const payload: Omit<Impresora, "id"> = {
-      nombre: form.value.nombre,
+      nombre: cleanText(form.value.nombre),
       tipo: form.value.tipo,
-      host: form.value.host || null,
-      puerto: form.value.puerto,
+      host: cleanText(form.value.host) || null,
+      puerto: form.value.host ? Number(form.value.puerto) : null,
       activo: form.value.activo,
     };
     if (esEdit.value && editId.value !== null) {

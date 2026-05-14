@@ -3,9 +3,17 @@ import { ref, computed } from "vue";
 import { useToast } from "primevue/usetoast";
 import { adminApi, type UsuarioAdmin } from "@/modules/admin/api/adminApi";
 import { useAuthStore } from "@/modules/auth/store/authStore";
+import {
+  cleanText,
+  firstError,
+  nameText,
+  oneOf,
+  password,
+} from "@/shared/validation/inputValidation";
 import Button from "primevue/button";
 import Dialog from "primevue/dialog";
 import InputText from "primevue/inputtext";
+import InputNumber from "primevue/inputnumber";
 import Select from "primevue/select";
 import Tag from "primevue/tag";
 import ToggleSwitch from "primevue/toggleswitch";
@@ -28,25 +36,75 @@ const ROL_LABELS: Record<string, string> = {
   CO: "Cocinero",
   CA: "Cajero",
 };
-const ROL_SEVERITY: Record<string, "danger" | "warn" | "info" | "secondary"> = {
-  AD: "danger",
-  ME: "info",
-  CO: "warn",
-  CA: "secondary",
-};
+const ROL_SEVERITY: Record<string, "danger" | "warn" | "info" | "secondary"> =
+  {
+    AD: "danger",
+    ME: "info",
+    CO: "warn",
+    CA: "secondary",
+  };
+
+// ── Helper: solo usuarios activos pueden editarse ─────────────────────────
+function puedeEditar(u: UsuarioAdmin): boolean {
+  return u.activo;
+}
 
 // ── Crear/Editar usuario ─────────────────────────────────────────────────
 const dialogVisible = ref(false);
 const esEdicion = ref(false);
 const saving = ref(false);
+
+// usuarioDni: string para InputText controlado (DNI = exactamente 8 dígitos numéricos)
 const form = ref({
   id: 0,
   nombre: "",
   apellido: "",
-  usuario: "",
+  usuarioDni: "" as string,
   contrasena: "",
   rolId: "ME",
   activo: true,
+});
+
+// Validación en tiempo real del DNI
+const dniTocado = ref(false);
+const dniEsValido = computed(() => /^\d{8}$/.test(form.value.usuarioDni));
+const dniError = computed(() => {
+  if (!dniTocado.value) return "";
+  if (!form.value.usuarioDni) return "El DNI es requerido";
+  if (!/^\d{8}$/.test(form.value.usuarioDni))
+    return "El DNI debe tener exactamente 8 dígitos";
+  return "";
+});
+
+// Bloquea cualquier tecla que no sea dígito o que supere 8 caracteres
+function soloDigitosDni(e: KeyboardEvent) {
+  if (!/^\d$/.test(e.key)) {
+    e.preventDefault();
+    return;
+  }
+  if (form.value.usuarioDni.length >= 8) {
+    e.preventDefault();
+  }
+}
+
+// Bloquea pegado que contenga no-dígitos o supere 8 caracteres
+function pegadoDni(e: ClipboardEvent) {
+  e.preventDefault();
+  const texto = e.clipboardData?.getData("text") ?? "";
+  const soloNum = texto.replace(/\D/g, "");
+  const disponible = 8 - form.value.usuarioDni.length;
+  form.value.usuarioDni += soloNum.slice(0, disponible);
+  dniTocado.value = true;
+}
+
+// Botón guardar habilitado solo si el form es válido
+const formValido = computed(() => {
+  if (!form.value.nombre.trim() || !form.value.apellido.trim()) return false;
+  if (!esEdicion.value) {
+    if (!dniEsValido.value) return false;
+    if (!form.value.contrasena) return false;
+  }
+  return true;
 });
 
 function abrirCrear() {
@@ -54,62 +112,75 @@ function abrirCrear() {
     id: 0,
     nombre: "",
     apellido: "",
-    usuario: "",
+    usuarioDni: "",
     contrasena: "",
     rolId: "ME",
     activo: true,
   };
+  dniTocado.value = false;
   esEdicion.value = false;
   dialogVisible.value = true;
 }
 
 function abrirEditar(u: UsuarioAdmin) {
+  // Guard: no abrir si el usuario está inactivo
+  if (!puedeEditar(u)) return;
   form.value = {
     id: u.id,
     nombre: u.nombre,
     apellido: u.apellido,
-    usuario: u.usuario,
+    usuarioDni: "",
     contrasena: "",
     rolId: u.rolId,
     activo: u.activo,
   };
+  dniTocado.value = false;
   esEdicion.value = true;
   dialogVisible.value = true;
 }
 
 async function guardar() {
-  if (!form.value.nombre || !form.value.apellido || !form.value.usuario) {
+  if (!esEdicion.value) dniTocado.value = true;
+
+  const validationError = firstError([
+    nameText(form.value.nombre, "Nombre"),
+    nameText(form.value.apellido, "Apellido"),
+    !esEdicion.value && !dniEsValido.value
+      ? "El DNI debe tener exactamente 8 dígitos"
+      : "",
+    !esEdicion.value && password(form.value.contrasena),
+    oneOf(
+      form.value.rolId,
+      ROLES.map((r) => r.value),
+      "Rol",
+    ),
+  ]);
+  if (validationError) {
     toast.add({
       severity: "warn",
-      summary: "Campos requeridos",
-      detail: "Completa nombre, apellido y usuario",
+      summary: "Revisa el formulario",
+      detail: validationError,
       life: 3000,
     });
     return;
   }
+
   saving.value = true;
   try {
+    const nombre = cleanText(form.value.nombre);
+    const apellido = cleanText(form.value.apellido);
     if (esEdicion.value) {
       await adminApi.actualizarUsuario(form.value.id, {
-        nombre: form.value.nombre,
-        apellido: form.value.apellido,
+        nombre,
+        apellido,
         rolId: form.value.rolId,
         activo: form.value.activo,
       });
     } else {
-      if (!form.value.contrasena) {
-        toast.add({
-          severity: "warn",
-          summary: "Contraseña requerida",
-          detail: "Ingresa una contraseña",
-          life: 3000,
-        });
-        return;
-      }
       await adminApi.crearUsuario({
-        nombre: form.value.nombre,
-        apellido: form.value.apellido,
-        usuario: form.value.usuario,
+        nombre,
+        apellido,
+        usuario: form.value.usuarioDni,
         contrasena: form.value.contrasena,
         rolId: form.value.rolId,
       });
@@ -142,12 +213,24 @@ const nuevaPass = ref("");
 const resetting = ref(false);
 
 function abrirReset(u: UsuarioAdmin) {
+  // Guard: no abrir si el usuario está inactivo
+  if (!puedeEditar(u)) return;
   resetId.value = u.id;
   nuevaPass.value = "";
   resetDialog.value = true;
 }
 
 async function confirmarReset() {
+  const validationError = password(nuevaPass.value, "Nueva contraseña");
+  if (validationError) {
+    toast.add({
+      severity: "warn",
+      summary: "Revisa la contraseña",
+      detail: validationError,
+      life: 3000,
+    });
+    return;
+  }
   if (!nuevaPass.value || nuevaPass.value.length < 6) {
     toast.add({
       severity: "warn",
@@ -177,7 +260,7 @@ async function confirmarReset() {
   }
 }
 
-// ── Toggle activo / eliminar ─────────────────────────────────────────────
+// ── Toggle activo ────────────────────────────────────────────────────────
 async function toggleActivo(u: UsuarioAdmin) {
   if (u.id === authStore.userId) return;
   try {
@@ -194,6 +277,7 @@ async function toggleActivo(u: UsuarioAdmin) {
   }
 }
 
+// ── Búsqueda ─────────────────────────────────────────────────────────────
 const busqueda = ref("");
 const usuariosFiltrados = computed(() =>
   props.usuarios.filter((u) =>
@@ -273,20 +357,26 @@ const usuariosFiltrados = computed(() =>
             </td>
             <td>
               <div class="acciones">
+                <!-- Editar: deshabilitado si inactivo -->
                 <Button
                   icon="pi pi-pencil"
                   text
                   rounded
                   size="small"
+                  :disabled="!puedeEditar(u)"
+                  :class="{ 'btn-bloqueado': !puedeEditar(u) }"
                   @click="abrirEditar(u)"
                   aria-label="Editar"
                 />
+                <!-- Reset contraseña: deshabilitado si inactivo -->
                 <Button
                   icon="pi pi-key"
                   text
                   rounded
                   size="small"
                   severity="warn"
+                  :disabled="!puedeEditar(u)"
+                  :class="{ 'btn-bloqueado': !puedeEditar(u) }"
                   @click="abrirReset(u)"
                   aria-label="Cambiar contraseña"
                 />
@@ -316,14 +406,27 @@ const usuariosFiltrados = computed(() =>
           <label>Apellido</label>
           <InputText v-model="form.apellido" fluid />
         </div>
-        <div class="form-field" v-if="!esEdicion">
-          <label>Usuario (login)</label>
-          <InputText v-model="form.usuario" fluid />
+
+        <!-- Usuario (login): solo en creación, únicamente DNI de 8 dígitos -->
+        <div v-if="!esEdicion" class="form-field">
+          <label>Usuario (DNI)</label>
+          <InputText
+            v-model="form.usuarioDni"
+            placeholder="12345678"
+            fluid
+            inputmode="numeric"
+            @keypress="soloDigitosDni"
+            @paste="pegadoDni"
+            @input="dniTocado = true"
+          />
+          <small v-if="dniError" class="field-error">{{ dniError }}</small>
         </div>
-        <div class="form-field" v-if="!esEdicion">
+
+        <div v-if="!esEdicion" class="form-field">
           <label>Contraseña</label>
           <InputText v-model="form.contrasena" type="password" fluid />
         </div>
+
         <div class="form-field">
           <label>Rol</label>
           <Select
@@ -334,7 +437,8 @@ const usuariosFiltrados = computed(() =>
             fluid
           />
         </div>
-        <div class="form-field" v-if="esEdicion">
+
+        <div v-if="esEdicion" class="form-field">
           <label>Estado</label>
           <div class="estado-cell">
             <ToggleSwitch v-model="form.activo" />
@@ -342,6 +446,7 @@ const usuariosFiltrados = computed(() =>
           </div>
         </div>
       </div>
+
       <template #footer>
         <Button
           label="Cancelar"
@@ -353,6 +458,7 @@ const usuariosFiltrados = computed(() =>
           :label="esEdicion ? 'Guardar cambios' : 'Crear usuario'"
           icon="pi pi-check"
           :loading="saving"
+          :disabled="!formValido"
           @click="guardar"
         />
       </template>
@@ -520,6 +626,13 @@ const usuariosFiltrados = computed(() =>
   gap: 0.25rem;
 }
 
+// Botones bloqueados para usuarios inactivos
+.btn-bloqueado {
+  opacity: 0.35 !important;
+  cursor: not-allowed !important;
+  pointer-events: none !important;
+}
+
 .empty-row {
   text-align: center;
   color: $text-muted;
@@ -541,5 +654,10 @@ const usuariosFiltrados = computed(() =>
   font-size: 0.8rem;
   color: $text-muted;
   font-weight: 600;
+}
+.field-error {
+  color: $c-red;
+  font-size: 0.72rem;
+  line-height: 1.25;
 }
 </style>

@@ -8,6 +8,11 @@ import InputText from "primevue/inputtext";
 import Button from "primevue/button";
 import { reportesApi, type Arqueo } from "@/modules/admin/api/reportesApi";
 import { useAuthStore } from "@/modules/auth/store/authStore";
+import {
+  cleanText,
+  maxLength,
+  money,
+} from "@/shared/validation/inputValidation";
 
 const toast = useToast();
 const auth = useAuthStore();
@@ -47,6 +52,18 @@ async function cargar() {
 
 async function handleAbrir() {
   const cajeroId = auth.userId;
+  const validationError =
+    money(abrirForm.value.montoApertura, "Monto de apertura") ??
+    maxLength(abrirForm.value.notas, "Notas", 180);
+  if (validationError) {
+    toast.add({
+      severity: "warn",
+      summary: "Revisa la apertura",
+      detail: validationError,
+      life: 3000,
+    });
+    return;
+  }
   if (cajeroId === null) {
     toast.add({
       severity: "warn",
@@ -59,8 +76,8 @@ async function handleAbrir() {
   try {
     await reportesApi.abrirArqueo(
       cajeroId,
-      abrirForm.value.montoApertura,
-      abrirForm.value.notas || undefined,
+      Number(abrirForm.value.montoApertura),
+      cleanText(abrirForm.value.notas) || undefined,
     );
     toast.add({ severity: "success", summary: "Caja abierta", life: 2500 });
     abrirDialog.value = false;
@@ -79,12 +96,24 @@ async function handleAbrir() {
 
 async function handleCerrar() {
   if (!activo.value) return;
+  const validationError =
+    money(cerrarForm.value.montoCierre, "Monto de cierre") ??
+    maxLength(cerrarForm.value.notas, "Notas", 180);
+  if (validationError) {
+    toast.add({
+      severity: "warn",
+      summary: "Revisa el cierre",
+      detail: validationError,
+      life: 3000,
+    });
+    return;
+  }
   saving.value = true;
   try {
     await reportesApi.cerrarArqueo(
       activo.value.id,
-      cerrarForm.value.montoCierre,
-      cerrarForm.value.notas || undefined,
+      Number(cerrarForm.value.montoCierre),
+      cleanText(cerrarForm.value.notas) || undefined,
     );
     toast.add({ severity: "success", summary: "Caja cerrada", life: 2500 });
     cerrarDialog.value = false;
