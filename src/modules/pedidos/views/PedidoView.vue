@@ -11,8 +11,9 @@ import {
 import { pedidosApi, type ItemPedido } from "@/modules/pedidos/api/pedidosApi";
 import Button from "primevue/button";
 import InputText from "primevue/inputtext";
+import InputNumber from "primevue/inputnumber";
 import Badge from "primevue/badge";
-import { cleanText, maxLength } from "@/shared/validation/inputValidation";
+import { cleanText, maxLength, numberRange } from "@/shared/validation/inputValidation";
 
 const route = useRoute();
 const router = useRouter();
@@ -26,6 +27,8 @@ const pedidoId = ref<number | null>(null);
 const menu = ref<CategoriaConProductosDTO[]>([]);
 const items = ref<ItemPedido[]>([]);
 const categoriaActiva = ref<number | null>(null);
+const productoPendiente = ref<ProductoDTO | null>(null);
+const cantidad = ref(1);
 const observacion = ref("");
 const loading = ref(true);
 const agregando = ref(false);
@@ -64,28 +67,39 @@ onMounted(async () => {
   }
 });
 
-async function agregarProducto(producto: ProductoDTO) {
-  if (!pedidoId.value) return;
-  const validationError = maxLength(observacion.value, "Observación", 180);
+function seleccionarProducto(producto: ProductoDTO) {
+  productoPendiente.value = producto;
+  cantidad.value = 1;
+}
+
+async function agregarProducto() {
+  if (!pedidoId.value || !productoPendiente.value) return;
+  const validationError =
+    numberRange(cantidad.value, "Cantidad", 1, 99) ||
+    maxLength(observacion.value, "Observacion", 180);
   if (validationError) {
     toast.add({
       severity: "warn",
-      summary: "Revisa la observación",
+      summary: "Revisa el pedido",
       detail: validationError,
       life: 3000,
     });
     return;
   }
+
   agregando.value = true;
   try {
+    const producto = productoPendiente.value;
     const res = await pedidosApi.agregarItem(
       pedidoId.value,
       producto.id,
-      1,
+      Number(cantidad.value),
       cleanText(observacion.value),
     );
     items.value.push(res.data.data);
     observacion.value = "";
+    cantidad.value = 1;
+    productoPendiente.value = null;
     toast.add({
       severity: "success",
       summary: "Agregado",
@@ -108,7 +122,6 @@ async function agregarProducto(producto: ProductoDTO) {
 
 <template>
   <div class="pedido-page" v-if="!loading">
-    <!-- Header -->
     <header class="pedido-header">
       <div class="pedido-header-left">
         <button
@@ -120,7 +133,7 @@ async function agregarProducto(producto: ProductoDTO) {
         </button>
         <div class="header-info">
           <span class="header-title">Mesa {{ mesaNum }}</span>
-          <span class="header-sub">Sesión #{{ sesionId }}</span>
+          <span class="header-sub">Sesion #{{ sesionId }}</span>
         </div>
       </div>
       <div class="pedido-header-right">
@@ -146,13 +159,11 @@ async function agregarProducto(producto: ProductoDTO) {
       </div>
     </header>
 
-    <!-- Layout split -->
     <div class="pedido-layout">
-      <!-- Sidebar: Menú -->
       <aside class="menu-panel">
         <div class="panel-header">
           <i class="pi pi-book"></i>
-          <span>Menú</span>
+          <span>Menu</span>
         </div>
 
         <div class="categorias">
@@ -168,7 +179,29 @@ async function agregarProducto(producto: ProductoDTO) {
         </div>
 
         <div class="obs-field">
-          <label>Observación</label>
+          <label>Producto</label>
+          <InputText
+            :model-value="productoPendiente?.nombre ?? 'Selecciona un producto'"
+            readonly
+            fluid
+            size="small"
+          />
+        </div>
+
+        <div class="obs-field">
+          <label>Cantidad</label>
+          <InputNumber
+            v-model="cantidad"
+            :min="1"
+            :max="99"
+            showButtons
+            fluid
+            size="small"
+          />
+        </div>
+
+        <div class="obs-field">
+          <label>Observacion</label>
           <InputText
             v-model="observacion"
             placeholder="Sin cebolla, extra salsa..."
@@ -182,35 +215,46 @@ async function agregarProducto(producto: ProductoDTO) {
             v-for="prod in productosActivos"
             :key="prod.id"
             class="producto-item"
-            :class="{ 'producto-loading': agregando }"
-            @click="agregarProducto(prod)"
+            :class="{ 'producto-loading': agregando, selected: productoPendiente?.id === prod.id }"
+            @click="seleccionarProducto(prod)"
           >
             <span class="prod-nombre">{{ prod.nombre }}</span>
             <span class="prod-precio">S/ {{ prod.precio.toFixed(2) }}</span>
           </div>
         </div>
+
+        <Button
+          label="Agregar al pedido"
+          icon="pi pi-plus"
+          size="small"
+          fluid
+          :disabled="!productoPendiente"
+          :loading="agregando"
+          @click="agregarProducto"
+        />
       </aside>
 
-      <!-- Panel: Pedido -->
       <main class="pedido-panel">
         <div class="panel-header">
           <i class="pi pi-receipt"></i>
           <span>Pedido</span>
-          <span v-if="items.length > 0" class="item-count"
-            >{{ items.length }} ítem{{ items.length !== 1 ? "s" : "" }}</span
-          >
+          <span v-if="items.length > 0" class="item-count">
+            {{ items.length }} item{{ items.length !== 1 ? "s" : "" }}
+          </span>
         </div>
 
         <div v-if="items.length === 0" class="empty-pedido">
           <i class="pi pi-cart-plus"></i>
-          <p>Sin ítems aún</p>
-          <span>Selecciona del menú para agregar</span>
+          <p>Sin items aun</p>
+          <span>Selecciona producto, cantidad y observacion antes de agregar</span>
         </div>
 
         <div v-else class="items-list">
           <div v-for="item in items" :key="item.detalleId" class="item-row">
             <div class="item-info">
-              <span class="item-nombre">{{ item.productoNombre }}</span>
+              <span class="item-nombre">
+                {{ item.cantidad }}x {{ item.productoNombre }}
+              </span>
               <Badge
                 :value="item.estado"
                 severity="secondary"

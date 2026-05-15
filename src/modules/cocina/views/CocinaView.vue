@@ -151,12 +151,36 @@ async function cambiarEstado(item: ColaItem, nuevoEstado: string) {
   }
 }
 
+async function cancelarItem(item: ColaItem) {
+  const motivo = window.prompt(`Motivo para cancelar ${item.producto}`);
+  if (!motivo || !motivo.trim()) return;
+  try {
+    await cocinaApi.cancelarItem(item.detalleId, motivo.trim());
+    cola.value = cola.value.filter((i) => i.detalleId !== item.detalleId);
+    toast.add({
+      severity: "warn",
+      summary: "Cancelado",
+      detail: `${item.producto} cancelado`,
+      life: 2500,
+    });
+  } catch (e: unknown) {
+    const err = e as { response?: { data?: { message?: string } } };
+    toast.add({
+      severity: "error",
+      summary: "Error",
+      detail: err.response?.data?.message ?? "No se pudo cancelar el item",
+      life: 3000,
+    });
+  }
+}
+
 onMounted(async () => {
   await cargarCola();
   conectarWebSocket();
   ticker = setInterval(() => {
     now.value = Date.now();
-  }, 30000);
+    cargarCola();
+  }, 10000);
 });
 
 onUnmounted(() => {
@@ -275,6 +299,12 @@ onUnmounted(() => {
             >
               <i class="pi pi-bolt"></i> Iniciar
             </button>
+            <button
+              class="item-action action-cancel"
+              @click="cancelarItem(item)"
+            >
+              <i class="pi pi-times-circle"></i> Cancelar
+            </button>
           </div>
         </div>
       </div>
@@ -327,6 +357,12 @@ onUnmounted(() => {
               @click="cambiarEstado(item, 'LISTO')"
             >
               <i class="pi pi-check-circle"></i> Listo
+            </button>
+            <button
+              class="item-action action-cancel"
+              @click="cancelarItem(item)"
+            >
+              <i class="pi pi-times-circle"></i> Cancelar
             </button>
           </div>
         </div>

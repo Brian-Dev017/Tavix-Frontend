@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from "vue";
+import { ref, computed, onMounted, onUnmounted } from "vue";
 import { useRouter } from "vue-router";
 import { useToast } from "primevue/usetoast";
 import { performLogout } from "@/shared/auth/logout";
@@ -7,14 +7,17 @@ import { useRol } from "@/shared/composables/useRol";
 import { cajaApi, type PedidoResumen } from "@/modules/caja/api/cajaApi";
 import Button from "primevue/button";
 import InputText from "primevue/inputtext";
+import InputNumber from "primevue/inputnumber";
 import Select from "primevue/select";
 import {
   cleanText,
   dni,
   firstError,
   maxLength,
+  numberRange,
   oneOf,
   onlyDigits,
+  required,
   ruc,
 } from "@/shared/validation/inputValidation";
 
@@ -32,6 +35,9 @@ const metodoPago = ref("EFECTIVO");
 const rucDni = ref("");
 const razonSocial = ref("");
 const direccion = ref("");
+const descuento = ref(0);
+const motivoDescuento = ref("");
+let refresco: ReturnType<typeof setInterval> | null = null;
 
 const tiposComprobante = [
   { label: "Ticket", value: "T" },
@@ -52,18 +58,29 @@ const requiereDatos = computed(
   () => tipoComprobante.value === "B" || tipoComprobante.value === "F",
 );
 
-async function cargarPedidos() {
-  loading.value = true;
+const totalFinal = computed(() => {
+  if (!pedidoSeleccionado.value) return 0;
+  return Math.max(0, Number(pedidoSeleccionado.value.totalConIgv) - Number(descuento.value || 0));
+});
+
+async function cargarPedidos(silent = false) {
+  if (!silent) loading.value = true;
   try {
     const res = await cajaApi.getPedidosActivos();
     pedidos.value = res.data.data;
+    if (pedidoSeleccionado.value) {
+      const updated = pedidos.value.find((p) => p.pedidoId === pedidoSeleccionado.value?.pedidoId);
+      pedidoSeleccionado.value = updated ?? null;
+    }
   } catch {
-    toast.add({
-      severity: "error",
-      summary: "Error",
-      detail: "No se pudieron cargar los pedidos",
-      life: 3000,
-    });
+    if (!silent) {
+      toast.add({
+        severity: "error",
+        summary: "Error",
+        detail: "No se pudieron cargar los pedidos",
+        life: 3000,
+      });
+    }
   } finally {
     loading.value = false;
   }
@@ -76,6 +93,8 @@ function seleccionarPedido(p: PedidoResumen) {
   rucDni.value = "";
   razonSocial.value = "";
   direccion.value = "";
+  descuento.value = 0;
+  motivoDescuento.value = "";
 }
 
 function cancelarSeleccion() {
@@ -90,6 +109,8 @@ async function handleLogout() {
 async function cobrar() {
   if (!pedidoSeleccionado.value) return;
   const validationError = firstError([
+    pedidoSeleccionado.value.estadoPedido !== "LISTO" &&
+      "Solo se puede cobrar un pedido LISTO",
     oneOf(
       tipoComprobante.value,
       tiposComprobante.map((t) => t.value),
@@ -98,12 +119,17 @@ async function cobrar() {
     oneOf(
       metodoPago.value,
       metodosPago.map((m) => m.value),
-      "Método de pago",
+      "Metodo de pago",
     ),
     tipoComprobante.value === "F" && ruc(rucDni.value),
-    tipoComprobante.value === "B" && dni(rucDni.value),
-    requiereDatos.value && maxLength(razonSocial.value, "Razón social / Nombre", 120),
-    maxLength(direccion.value, "Dirección", 160),
+    tipoComprobante.value === "F" && required(razonSocial.value, "Razon social"),
+    tipoComprobante.value === "F" && required(direccion.value, "Direccion"),
+    tipoComprobante.value === "B" && onlyDigits(rucDni.value).length > 0 && dni(rucDni.value),
+    requiereDatos.value && maxLength(razonSocial.value, "Razon social / Nombre", 120),
+    maxLength(direccion.value, "Direccion", 160),
+    numberRange(descuento.value, "Descuento", 0, pedidoSeleccionado.value.totalConIgv),
+    Number(descuento.value || 0) > 0 && required(motivoDescuento.value, "Motivo de descuento"),
+    maxLength(motivoDescuento.value, "Motivo de descuento", 160),
   ]);
   if (validationError) {
     toast.add({
@@ -114,6 +140,7 @@ async function cobrar() {
     });
     return;
   }
+
   procesando.value = true;
   try {
     const req = {
@@ -127,13 +154,15 @@ async function cobrar() {
             direccion: cleanText(direccion.value),
           }
         : undefined,
+      descuento: Number(descuento.value || 0),
+      motivoDescuento: cleanText(motivoDescuento.value),
     };
     const res = await cajaApi.emitirComprobante(req);
     const comp = res.data.data;
     toast.add({
       severity: "success",
       summary: "Cobrado",
-      detail: `Mesa ${pedidoSeleccionado.value.mesa} — S/ ${Number(comp.total).toFixed(2)} (${comp.metodoPago})`,
+      detail: `${comp.serie}-${String(comp.numero).padStart(8, "0")} - S/ ${Number(comp.total).toFixed(2)}`,
       life: 5000,
     });
     pedidoSeleccionado.value = null;
@@ -155,12 +184,18 @@ function fmt(v: number) {
   return `S/ ${Number(v).toFixed(2)}`;
 }
 
-onMounted(cargarPedidos);
+onMounted(() => {
+  cargarPedidos();
+  refresco = setInterval(() => cargarPedidos(true), 10000);
+});
+
+onUnmounted(() => {
+  if (refresco) clearInterval(refresco);
+});
 </script>
 
 <template>
   <div class="caja-page">
-    <!-- Header -->
     <header class="page-header">
       <div>
         <h1 class="page-title">
@@ -174,7 +209,7 @@ onMounted(cargarPedidos);
           ></i>
           Caja
         </h1>
-        <p class="page-subtitle">Cobros · Comprobantes fiscales</p>
+        <p class="page-subtitle">Cobros - Comprobantes fiscales</p>
       </div>
 
       <div class="page-actions">
@@ -200,7 +235,7 @@ onMounted(cargarPedidos);
         <button
           class="hdr-btn"
           :class="{ spinning: loading }"
-          @click="cargarPedidos"
+          @click="cargarPedidos()"
           title="Actualizar"
         >
           <i class="pi pi-sync"></i>
@@ -208,22 +243,19 @@ onMounted(cargarPedidos);
         <button
           class="hdr-btn danger"
           @click="handleLogout"
-          title="Cerrar sesión"
+          title="Cerrar sesion"
         >
           <i class="pi pi-sign-out"></i>
         </button>
       </div>
     </header>
 
-    <!-- Loading -->
     <div v-if="loading" class="page-loading">
       <div class="page-spinner"></div>
       <span>Cargando pedidos...</span>
     </div>
 
-    <!-- Layout principal -->
     <div v-else class="caja-layout">
-      <!-- Panel izquierdo: Lista de pedidos -->
       <div class="pedidos-col">
         <div class="col-header-bar">
           <span class="col-title">Pedidos activos</span>
@@ -250,40 +282,33 @@ onMounted(cargarPedidos);
               <span class="mesa-tag">Mesa {{ p.mesa }}</span>
               <span
                 class="estado-tag"
-                :class="
-                  'estado-' + p.estadoPedido.toLowerCase().replace(' ', '_')
-                "
+                :class="'estado-' + p.estadoPedido.toLowerCase().replace(' ', '_')"
               >
                 {{ p.estadoPedido }}
               </span>
             </div>
             <div class="pedido-meta">
-              {{ p.mesero }} · {{ p.totalItems }} ítems
+              {{ p.mesero }} - {{ p.totalItems }} items
             </div>
             <div class="pedido-total">{{ fmt(p.totalConIgv) }}</div>
           </div>
         </div>
       </div>
 
-      <!-- Panel derecho: Cobro -->
       <div class="cobro-col">
-        <!-- Empty: nada seleccionado -->
         <div v-if="!pedidoSeleccionado" class="cobro-empty">
           <i class="pi pi-list-check"></i>
           <p>Selecciona un pedido para cobrar</p>
         </div>
 
-        <!-- Panel de cobro activo -->
         <div v-else class="cobro-scroll">
           <div>
             <div class="cobro-heading">Cobrar pedido</div>
             <div class="cobro-sub">
-              Mesa {{ pedidoSeleccionado.mesa }} ·
-              {{ pedidoSeleccionado.mesero }}
+              Mesa {{ pedidoSeleccionado.mesa }} - {{ pedidoSeleccionado.mesero }}
             </div>
           </div>
 
-          <!-- Resumen financiero -->
           <div class="resumen-box">
             <div class="resumen-row">
               <span>Subtotal</span>
@@ -293,13 +318,16 @@ onMounted(cargarPedidos);
               <span>IGV (18%)</span>
               <span class="val">{{ fmt(pedidoSeleccionado.igv) }}</span>
             </div>
+            <div class="resumen-row">
+              <span>Descuento</span>
+              <span class="val">{{ fmt(descuento || 0) }}</span>
+            </div>
             <div class="resumen-total">
               <span>Total</span>
-              <span class="val">{{ fmt(pedidoSeleccionado.totalConIgv) }}</span>
+              <span class="val">{{ fmt(totalFinal) }}</span>
             </div>
           </div>
 
-          <!-- Tipo comprobante -->
           <div class="form-field">
             <label>Tipo de comprobante</label>
             <Select
@@ -311,9 +339,8 @@ onMounted(cargarPedidos);
             />
           </div>
 
-          <!-- Método de pago -->
           <div class="form-field">
-            <label>Método de pago</label>
+            <label>Metodo de pago</label>
             <Select
               v-model="metodoPago"
               :options="metodosPago"
@@ -323,33 +350,42 @@ onMounted(cargarPedidos);
             />
           </div>
 
-          <!-- Datos para boleta/factura -->
+          <div class="form-field">
+            <label>Descuento</label>
+            <InputNumber
+              v-model="descuento"
+              :min="0"
+              :max="pedidoSeleccionado.totalConIgv"
+              :minFractionDigits="2"
+              :maxFractionDigits="2"
+              fluid
+            />
+          </div>
+
+          <div v-if="Number(descuento || 0) > 0" class="form-field">
+            <label>Motivo de descuento</label>
+            <InputText v-model="motivoDescuento" placeholder="Autorizacion admin..." fluid />
+          </div>
+
           <div v-if="requiereDatos" class="datos-extra">
             <div class="form-field">
-              <label>{{ tipoComprobante === "F" ? "RUC" : "DNI" }}</label>
+              <label>{{ tipoComprobante === "F" ? "RUC" : "DNI opcional" }}</label>
               <InputText
                 v-model="rucDni"
-                :placeholder="
-                  tipoComprobante === 'F' ? '20xxxxxxxxx' : '########'
-                "
+                :placeholder="tipoComprobante === 'F' ? '20xxxxxxxxx' : '########'"
                 fluid
               />
             </div>
             <div class="form-field">
-              <label>Razón social / Nombre</label>
-              <InputText
-                v-model="razonSocial"
-                placeholder="Nombre o empresa"
-                fluid
-              />
+              <label>Razon social / Nombre</label>
+              <InputText v-model="razonSocial" placeholder="Nombre o empresa" fluid />
             </div>
             <div class="form-field">
-              <label>Dirección (opcional)</label>
+              <label>Direccion</label>
               <InputText v-model="direccion" placeholder="Av. ..." fluid />
             </div>
           </div>
 
-          <!-- Acciones -->
           <div class="cobro-actions">
             <Button
               label="Cancelar"
@@ -358,9 +394,10 @@ onMounted(cargarPedidos);
               @click="cancelarSeleccion"
             />
             <Button
-              :label="`Cobrar ${fmt(pedidoSeleccionado.totalConIgv)}`"
+              :label="`Cobrar ${fmt(totalFinal)}`"
               icon="pi pi-receipt"
               severity="success"
+              :disabled="pedidoSeleccionado.estadoPedido !== 'LISTO'"
               :loading="procesando"
               @click="cobrar"
             />

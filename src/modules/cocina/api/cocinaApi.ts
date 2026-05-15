@@ -15,4 +15,6 @@ export const cocinaApi = {
   getCola: () => api.get<{ data: ColaItem[] }>('/api/cocina/cola'),
   actualizarEstado: (detalleId: number, estado: string) =>
     api.patch(`/api/cocina/items/${detalleId}/estado`, { estado }),
+  cancelarItem: (detalleId: number, motivo: string) =>
+    api.patch(`/api/cocina/items/${detalleId}/cancelar`, { motivo }),
 }

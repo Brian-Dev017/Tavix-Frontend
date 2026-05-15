@@ -262,6 +262,17 @@
       box-shadow: 0 4px 12px $c-green-glow;
     }
   }
+
+  &.action-cancel {
+    background: rgba(239, 68, 68, 0.08);
+    color: #dc2626;
+    border: 1px solid rgba(239, 68, 68, 0.18);
+
+    &:hover {
+      background: #dc2626;
+      color: #ffffff;
+    }
+  }
 }
 
 // ── Responsive ────────────────────────────────────────

@@ -22,15 +22,20 @@ export interface EmitirComprobanteRequest {
   tipoComprobanteId: string
   metodoPago: string
   datosComprobante?: DatosComprobanteRequest
+  descuento?: number
+  motivoDescuento?: string
 }
 
 export interface ComprobanteResponse {
   id: number
   pedidoId: number
   tipoComprobante: string
+  serie: string
+  numero: number
   metodoPago: string
   subtotal: number
   igv: number
+  descuento: number
   total: number
   estado: string
   pagadoEn: string
@@ -40,4 +45,6 @@ export const cajaApi = {
   getPedidosActivos: () => api.get<{ data: PedidoResumen[] }>('/api/caja/pedidos'),
   emitirComprobante: (req: EmitirComprobanteRequest) =>
     api.post<{ data: ComprobanteResponse }>('/api/caja/comprobante', req),
+  descargarEscPos: (id: number) =>
+    api.get(`/api/caja/comprobante/${id}/escpos`, { responseType: 'blob' }),
 }

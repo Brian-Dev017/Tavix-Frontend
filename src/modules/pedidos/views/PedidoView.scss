@@ -429,3 +429,8 @@
 @media (max-width: #{$bp-mobile}) {
   .productos-grid { grid-template-columns: 1fr 1fr; }
 }
+
+.producto-item.selected {
+  border-color: rgba(22, 163, 74, 0.45);
+  background: rgba(22, 163, 74, 0.08);
+}
