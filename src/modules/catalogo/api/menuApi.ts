@@ -6,6 +6,7 @@ export interface ProductoDTO {
   descripcion: string
   precio: number
   imagenUrl: string
+  disponible: boolean
 }
 
 export interface CategoriaConProductosDTO {

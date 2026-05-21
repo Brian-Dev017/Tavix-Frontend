@@ -61,6 +61,15 @@ function abrirCrear() {
 }
 
 function abrirEditar(p: ProductoAdmin) {
+  if (!p.disponible) {
+    toast.add({
+      severity: "warn",
+      summary: "Producto no disponible",
+      detail: "Activa el producto antes de editarlo",
+      life: 3000,
+    });
+    return;
+  }
   editId.value = p.id;
   form.value = {
     categoriaId: p.categoriaId,
@@ -264,6 +273,7 @@ const formatPrecio = (v: number) =>
                   text
                   rounded
                   size="small"
+                  :disabled="!p.disponible"
                   @click="abrirEditar(p)"
                   aria-label="Editar"
                 />

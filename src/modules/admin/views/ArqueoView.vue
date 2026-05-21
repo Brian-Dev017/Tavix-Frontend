@@ -195,6 +195,12 @@ onMounted(cargar);
               formatMonto(activo.totalVentas)
             }}</span>
           </div>
+          <div class="detail-item">
+            <span class="detail-label">Esperado en caja</span>
+            <span class="detail-value highlight">{{
+              formatMonto((activo.montoApertura ?? 0) + (activo.totalEfectivo ?? 0))
+            }}</span>
+          </div>
         </div>
         <div class="status-actions">
           <Button
@@ -233,17 +239,19 @@ onMounted(cargar);
             <th>Monto apertura</th>
             <th>Monto cierre</th>
             <th>Total ventas</th>
+            <th>Esperado</th>
+            <th>Diferencia</th>
             <th>Estado</th>
           </tr>
         </thead>
         <tbody>
           <tr v-if="loading">
-            <td colspan="8" class="table-empty">
+            <td colspan="10" class="table-empty">
               <i class="pi pi-spinner pi-spin"></i> Cargando…
             </td>
           </tr>
           <tr v-else-if="arqueos.length === 0">
-            <td colspan="8" class="table-empty">Sin registros</td>
+            <td colspan="10" class="table-empty">Sin registros</td>
           </tr>
           <tr v-for="a in arqueos" :key="a.id">
             <td>{{ a.id }}</td>
@@ -253,6 +261,8 @@ onMounted(cargar);
             <td>{{ formatMonto(a.montoApertura) }}</td>
             <td>{{ formatMonto(a.montoCierre) }}</td>
             <td>{{ formatMonto(a.totalVentas) }}</td>
+            <td>{{ formatMonto(a.montoEsperado) }}</td>
+            <td>{{ formatMonto(a.diferencia) }}</td>
             <td>
               <span
                 class="arqueo-badge"

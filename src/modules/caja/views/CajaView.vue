@@ -37,6 +37,7 @@ const razonSocial = ref("");
 const direccion = ref("");
 const descuento = ref(0);
 const motivoDescuento = ref("");
+const efectivoRecibido = ref(0);
 let refresco: ReturnType<typeof setInterval> | null = null;
 
 const tiposComprobante = [
@@ -62,6 +63,12 @@ const totalFinal = computed(() => {
   if (!pedidoSeleccionado.value) return 0;
   return Math.max(0, Number(pedidoSeleccionado.value.totalConIgv) - Number(descuento.value || 0));
 });
+
+const vuelto = computed(() =>
+  metodoPago.value === "EFECTIVO"
+    ? Math.max(0, Number(efectivoRecibido.value || 0) - totalFinal.value)
+    : 0,
+);
 
 async function cargarPedidos(silent = false) {
   if (!silent) loading.value = true;
@@ -95,6 +102,7 @@ function seleccionarPedido(p: PedidoResumen) {
   direccion.value = "";
   descuento.value = 0;
   motivoDescuento.value = "";
+  efectivoRecibido.value = Number(p.totalConIgv || 0);
 }
 
 function cancelarSeleccion() {
@@ -130,6 +138,7 @@ async function cobrar() {
     numberRange(descuento.value, "Descuento", 0, pedidoSeleccionado.value.totalConIgv),
     Number(descuento.value || 0) > 0 && required(motivoDescuento.value, "Motivo de descuento"),
     maxLength(motivoDescuento.value, "Motivo de descuento", 160),
+    metodoPago.value === "EFECTIVO" && numberRange(efectivoRecibido.value, "Efectivo recibido", totalFinal.value, 999999),
   ]);
   if (validationError) {
     toast.add({
@@ -156,13 +165,14 @@ async function cobrar() {
         : undefined,
       descuento: isAdmin.value ? Number(descuento.value || 0) : 0,
       motivoDescuento: isAdmin.value ? cleanText(motivoDescuento.value) : "",
+      efectivoRecibido: metodoPago.value === "EFECTIVO" ? Number(efectivoRecibido.value || 0) : undefined,
     };
     const res = await cajaApi.emitirComprobante(req);
     const comp = res.data.data;
     toast.add({
       severity: "success",
       summary: "Cobrado",
-      detail: `${comp.serie}-${String(comp.numero).padStart(8, "0")} - S/ ${Number(comp.total).toFixed(2)}`,
+      detail: `${comp.tipoComprobanteNombre} ${comp.serie}-${String(comp.numero).padStart(8, "0")} - S/ ${Number(comp.total).toFixed(2)}`,
       life: 5000,
     });
     pedidoSeleccionado.value = null;
@@ -362,6 +372,18 @@ onUnmounted(() => {
               optionValue="value"
               fluid
             />
+          </div>
+
+          <div v-if="metodoPago === 'EFECTIVO'" class="form-field">
+            <label>Efectivo recibido</label>
+            <InputNumber
+              v-model="efectivoRecibido"
+              :min="0"
+              :minFractionDigits="2"
+              :maxFractionDigits="2"
+              fluid
+            />
+            <small class="cash-change">Vuelto: {{ fmt(vuelto) }}</small>
           </div>
 
           <div v-if="isAdmin" class="form-field">

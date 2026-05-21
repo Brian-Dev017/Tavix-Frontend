@@ -17,6 +17,8 @@ const toast = useToast();
 
 const loading = ref(true);
 const dashboard = ref<DashboardData | null>(null);
+const desde = ref(new Date().toISOString().slice(0, 10));
+const hasta = ref(new Date().toISOString().slice(0, 10));
 const mesasOcupadas = ref(0);
 const usuariosActivos = ref(0);
 const pedidosActivos = ref<
@@ -110,7 +112,7 @@ async function cargar() {
   loading.value = true;
   try {
     const [resDash, resMesas, resUsuarios] = await Promise.all([
-      reportesApi.getDashboard().catch(() => null),
+      reportesApi.getDashboard(desde.value, hasta.value).catch(() => null),
       mesasApi.listar().catch(() => null),
       adminApi.listarUsuarios().catch(() => null),
     ]);
@@ -146,6 +148,12 @@ onMounted(cargar);
         <p class="dash-sub">{{ today }}</p>
       </div>
       <div class="dash-header-right">
+        <input v-model="desde" type="date" class="dash-date" />
+        <input v-model="hasta" type="date" class="dash-date" />
+        <button class="dash-alert-btn" @click="cargar">
+          <i class="pi pi-search"></i>
+          <span>Consultar</span>
+        </button>
         <button class="dash-alert-btn" @click="router.push('/admin/stock')">
           <i class="pi pi-exclamation-triangle"></i>
           <span>Revisar stock</span>
@@ -346,6 +354,16 @@ onMounted(cargar);
   display: flex;
   align-items: center;
   gap: 0.5rem;
+}
+
+.dash-date {
+  height: 32px;
+  border: 1px solid $border-medium;
+  background: $bg-card;
+  border-radius: $r-sm;
+  color: $text-primary;
+  font-size: 0.75rem;
+  padding: 0 0.6rem;
 }
 
 .dash-alert-btn {

@@ -3,17 +3,21 @@ import api from '@/shared/api/axiosInstance'
 export interface Insumo {
   id: number
   nombre: string
+  categoria: string
   unidad: string
   stockActual: number
   stockMinimo: number
+  fechaVencimiento: string | null
   activo: boolean
 }
 
 export interface GuardarInsumoRequest {
   nombre: string
+  categoria: string
   unidad: string
   stockActual: number
   stockMinimo: number
+  fechaVencimiento?: string | null
 }
 
 export const stockApi = {

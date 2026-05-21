@@ -354,3 +354,9 @@
 @media (max-width: #{$bp-mobile}) {
   .cobro-scroll { padding: 1rem; }
 }
+
+.cash-change {
+  color: var(--c-green, #16a34a);
+  font-size: 0.78rem;
+  font-weight: 700;
+}

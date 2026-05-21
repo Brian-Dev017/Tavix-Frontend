@@ -209,6 +209,7 @@ async function guardar() {
 // ── Reset password ───────────────────────────────────────────────────────
 const resetDialog = ref(false);
 const resetId = ref(0);
+const claveAnterior = ref("");
 const nuevaPass = ref("");
 const resetting = ref(false);
 
@@ -216,17 +217,19 @@ function abrirReset(u: UsuarioAdmin) {
   // Guard: no abrir si el usuario está inactivo
   if (!puedeEditar(u)) return;
   resetId.value = u.id;
+  claveAnterior.value = "";
   nuevaPass.value = "";
   resetDialog.value = true;
 }
 
 async function confirmarReset() {
+  const oldPasswordError = password(claveAnterior.value, "Clave anterior");
   const validationError = password(nuevaPass.value, "Nueva contraseña");
-  if (validationError) {
+  if (oldPasswordError || validationError) {
     toast.add({
       severity: "warn",
       summary: "Revisa la contraseña",
-      detail: validationError,
+      detail: oldPasswordError || validationError,
       life: 3000,
     });
     return;
@@ -242,7 +245,7 @@ async function confirmarReset() {
   }
   resetting.value = true;
   try {
-    await adminApi.resetPassword(resetId.value, nuevaPass.value);
+    await adminApi.resetPassword(resetId.value, claveAnterior.value, nuevaPass.value);
     toast.add({
       severity: "success",
       summary: "Contraseña cambiada",
@@ -471,6 +474,15 @@ const usuariosFiltrados = computed(() =>
       modal
       :style="{ width: '360px' }"
     >
+      <div class="form-field">
+        <label>Clave anterior</label>
+        <InputText
+          v-model="claveAnterior"
+          type="password"
+          fluid
+          placeholder="Clave actual del usuario"
+        />
+      </div>
       <div class="form-field">
         <label>Nueva contraseña</label>
         <InputText

@@ -65,9 +65,11 @@ const editId = ref<number | null>(null);
 
 const form = ref<GuardarInsumoRequest>({
   nombre: "",
+  categoria: "",
   unidad: "",
   stockActual: 0,
   stockMinimo: 0,
+  fechaVencimiento: null,
 });
 
 const ajusteDialog = ref(false);
@@ -125,9 +127,11 @@ function abrirCrear() {
 
   form.value = {
     nombre: "",
+    categoria: "",
     unidad: "",
     stockActual: 0,
     stockMinimo: 0,
+    fechaVencimiento: null,
   };
 
   dialog.value = true;
@@ -140,9 +144,11 @@ function abrirEditar(i: Insumo) {
 
   form.value = {
     nombre: i.nombre,
+    categoria: i.categoria,
     unidad: i.unidad,
     stockActual: i.stockActual,
     stockMinimo: i.stockMinimo,
+    fechaVencimiento: i.fechaVencimiento,
   };
 
   dialog.value = true;
@@ -151,6 +157,7 @@ function abrirEditar(i: Insumo) {
 async function guardar() {
   const validationError = firstError([
     nameText(form.value.nombre, "Nombre"),
+    required(form.value.categoria, "Categoria"),
 
     required(form.value.unidad, "Unidad"),
 
@@ -185,6 +192,7 @@ async function guardar() {
   try {
     const payload: GuardarInsumoRequest = {
       nombre: cleanText(form.value.nombre),
+      categoria: cleanText(form.value.categoria),
 
       unidad: form.value.unidad,
 
@@ -192,6 +200,7 @@ async function guardar() {
       stockActual: Number(form.value.stockActual),
 
       stockMinimo: Number(form.value.stockMinimo),
+      fechaVencimiento: form.value.fechaVencimiento ?? null,
     };
 
     if (esEdicion.value && editId.value !== null) {
@@ -410,10 +419,12 @@ onMounted(cargar);
         <thead>
           <tr>
             <th>Insumo</th>
+            <th>Categoría</th>
             <th>Unidad</th>
             <th>Stock Actual</th>
             <th>Stock Mínimo</th>
             <th>Estado</th>
+            <th>Vence</th>
             <th>Acciones</th>
           </tr>
         </thead>
@@ -421,14 +432,14 @@ onMounted(cargar);
         <tbody>
 
           <tr v-if="loading">
-            <td colspan="6" class="td-center">
+            <td colspan="8" class="td-center">
               <i class="pi pi-spinner pi-spin"></i>
               Cargando…
             </td>
           </tr>
 
           <tr v-else-if="insumos.length === 0">
-            <td colspan="6" class="td-center">
+            <td colspan="8" class="td-center">
               Sin insumos registrados
             </td>
           </tr>
@@ -438,6 +449,7 @@ onMounted(cargar);
             :key="item.id"
           >
             <td>{{ item.nombre }}</td>
+            <td>{{ item.categoria }}</td>
 
             <td>{{ item.unidad }}</td>
 
@@ -463,6 +475,7 @@ onMounted(cargar);
                 }}
               </span>
             </td>
+            <td>{{ item.fechaVencimiento ?? "—" }}</td>
 
             <td class="actions-cell">
 
@@ -525,6 +538,15 @@ onMounted(cargar);
             fluid
           />
 
+        </div>
+
+        <div class="form-field">
+          <label class="form-label">Categoría *</label>
+          <InputText
+            v-model="form.categoria"
+            placeholder="Ej: Abarrotes, Bebidas"
+            fluid
+          />
         </div>
 
         <!-- UNIDAD -->
@@ -607,6 +629,15 @@ onMounted(cargar);
             fluid
           />
 
+        </div>
+
+        <div class="form-field">
+          <label class="form-label">Fecha de vencimiento</label>
+          <InputText
+            v-model="form.fechaVencimiento"
+            type="date"
+            fluid
+          />
         </div>
 
       </div>

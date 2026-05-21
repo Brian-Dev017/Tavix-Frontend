@@ -36,11 +36,38 @@ export interface DashboardData {
 export interface ComprobanteHistorial {
   id: number
   pedidoId: number
+  tipoComprobante: string
+  serie: string | null
+  numero: number | null
   metodoPago: string
   total: number
   estado: string
   pagadoEn: string | null
   creadoEn: string
+}
+
+export interface HistorialDetalleItem {
+  producto: string
+  cantidad: number
+  precio: number
+  subtotal: number
+  estado: string
+  observaciones: string | null
+}
+
+export interface HistorialDetalle {
+  comprobanteId: number
+  pedidoId: number
+  tipoComprobante: string
+  serie: string
+  numero: number
+  metodoPago: string
+  subtotal: number
+  igv: number
+  descuento: number
+  total: number
+  pagadoEn: string | null
+  items: HistorialDetalleItem[]
 }
 
 export interface HistorialPage {
@@ -59,22 +86,31 @@ export interface Arqueo {
   montoApertura: number | null
   montoCierre: number | null
   totalVentas: number | null
+  totalEfectivo: number | null
+  totalDigital: number | null
+  montoEsperado: number | null
+  diferencia: number | null
   estado: 'ABIERTO' | 'CERRADO'
   notas: string | null
 }
 
 export const reportesApi = {
-  getDashboard:   () => api.get<{ data: DashboardData }>('/api/reportes/dashboard'),
+  getDashboard:   (desde?: string, hasta?: string) =>
+    api.get<{ data: DashboardData }>('/api/reportes/dashboard', { params: { desde, hasta } }),
   getVentas:      (desde: string, hasta: string) =>
     api.get<{ data: ReporteVentas }>('/api/reportes/ventas', { params: { desde, hasta } }),
   getHistorial:   (page = 0, size = 20, estado?: string) =>
     api.get<{ data: HistorialPage }>('/api/reportes/historial', { params: { page, size, estado } }),
+  getHistorialDetalle: (id: number) =>
+    api.get<{ data: HistorialDetalle }>(`/api/reportes/historial/${id}/detalle`),
 
   // Arqueos
   listarArqueos:  () => api.get<{ data: Arqueo[] }>('/api/caja/arqueos'),
   getActivo:      () => api.get<{ data: Arqueo }>('/api/caja/arqueos/activo'),
-  abrirArqueo:    (cajeroId: number, montoApertura: number, notas?: string) =>
-    api.post<{ data: Arqueo }>('/api/caja/arqueos/abrir', { cajeroId, montoApertura, notas }),
+  abrirArqueo:    (_cajeroId: number, montoApertura: number, notas?: string) =>
+    api.post<{ data: Arqueo }>('/api/caja/arqueos/abrir', { montoApertura, notas }),
   cerrarArqueo:   (id: number, montoCierre: number, notas?: string) =>
     api.post<{ data: Arqueo }>(`/api/caja/arqueos/${id}/cerrar`, { montoCierre, notas }),
+  getArqueoReporte: (id: number) =>
+    api.get<{ data: unknown }>(`/api/caja/arqueos/${id}/reporte`),
 }

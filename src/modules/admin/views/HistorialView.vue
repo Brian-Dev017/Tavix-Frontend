@@ -4,9 +4,11 @@ import { useToast } from "primevue/usetoast";
 import Toast from "primevue/toast";
 import Button from "primevue/button";
 import Select from "primevue/select";
+import Dialog from "primevue/dialog";
 import {
   reportesApi,
   type ComprobanteHistorial,
+  type HistorialDetalle,
 } from "@/modules/admin/api/reportesApi";
 import { oneOf } from "@/shared/validation/inputValidation";
 
@@ -26,6 +28,8 @@ const estadoOpts = [
   { label: "Pendiente", value: "PENDIENTE" },
 ];
 const estadoFiltro = ref("");
+const detalleDialog = ref(false);
+const detalle = ref<HistorialDetalle | null>(null);
 
 async function cargar(p = 0) {
   const validationError = oneOf(
@@ -86,6 +90,15 @@ function fmtSol(n: number) {
   return `S/ ${Number(n ?? 0).toFixed(2)}`;
 }
 
+async function verDetalle(id: number) {
+  try {
+    detalle.value = (await reportesApi.getHistorialDetalle(id)).data.data;
+    detalleDialog.value = true;
+  } catch {
+    toast.add({ severity: "error", summary: "Error al cargar detalle", life: 3000 });
+  }
+}
+
 const estadoClass = (e: string) => ({
   "badge-ok": e === "COMPLETADO",
   "badge-danger": e === "ANULADO",
@@ -136,16 +149,17 @@ onMounted(() => cargar());
             <th>Estado</th>
             <th>Pagado</th>
             <th>Creado</th>
+            <th>Detalle</th>
           </tr>
         </thead>
         <tbody>
           <tr v-if="loading">
-            <td colspan="7" class="empty-cell">
+            <td colspan="8" class="empty-cell">
               <i class="pi pi-spinner pi-spin"></i> Cargando…
             </td>
           </tr>
           <tr v-else-if="items.length === 0">
-            <td colspan="7" class="empty-cell">Sin registros</td>
+            <td colspan="8" class="empty-cell">Sin registros</td>
           </tr>
           <tr v-for="c in items" :key="c.id">
             <td class="mono">{{ c.id }}</td>
@@ -159,10 +173,33 @@ onMounted(() => cargar());
             </td>
             <td>{{ fmtFecha(c.pagadoEn) }}</td>
             <td>{{ fmtFecha(c.creadoEn) }}</td>
+            <td>
+              <Button icon="pi pi-eye" text rounded size="small" @click="verDetalle(c.id)" />
+            </td>
           </tr>
         </tbody>
       </table>
     </div>
+
+    <Dialog v-model:visible="detalleDialog" header="Detalle del pedido" modal :style="{ width: '620px' }">
+      <div v-if="detalle" class="detalle-box">
+        <div class="detalle-head">
+          <strong>{{ detalle.tipoComprobante }} {{ detalle.serie }}-{{ String(detalle.numero).padStart(8, "0") }}</strong>
+          <span>{{ fmtSol(detalle.total) }}</span>
+        </div>
+        <table class="data-table">
+          <thead><tr><th>Producto</th><th>Cant.</th><th>Precio</th><th>Subtotal</th></tr></thead>
+          <tbody>
+            <tr v-for="item in detalle.items" :key="`${item.producto}-${item.cantidad}`">
+              <td>{{ item.producto }}</td>
+              <td>{{ item.cantidad }}</td>
+              <td>{{ fmtSol(item.precio) }}</td>
+              <td>{{ fmtSol(item.subtotal) }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </Dialog>
 
     <!-- Pagination -->
     <div class="pagination-row">
@@ -310,5 +347,17 @@ onMounted(() => cargar());
 .page-info {
   font-size: 0.78rem;
   color: $text-muted;
+}
+
+.detalle-box {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.detalle-head {
+  display: flex;
+  justify-content: space-between;
+  color: $text-primary;
 }
 </style>

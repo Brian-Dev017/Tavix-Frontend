@@ -5,11 +5,13 @@ import { useToast } from "primevue/usetoast";
 import { mesasApi, type MesaDTO } from "@/modules/mesas/api/mesasApi";
 import { performLogout } from "@/shared/auth/logout";
 import { useRol } from "@/shared/composables/useRol";
+import { useAuthStore } from "@/modules/auth/store/authStore";
 import MesaCard from "@/modules/mesas/components/MesaCard.vue";
 
 const router = useRouter();
 const toast = useToast();
 const { rolMeta, isAdmin, nombreCompleto } = useRol();
+const auth = useAuthStore();
 
 const mesas = ref<MesaDTO[]>([]);
 const loading = ref(true);
@@ -62,6 +64,15 @@ async function handleMesaClick(mesa: MesaDTO) {
       });
     }
   } else if (mesa.estado === "OCUPADA" && mesa.sesionId) {
+    if (!isAdmin.value && mesa.meseroId !== auth.userId) {
+      toast.add({
+        severity: "warn",
+        summary: "Mesa en atencion",
+        detail: `La mesa esta tomada por ${mesa.meseroNombre ?? "otro mesero"}`,
+        life: 3000,
+      });
+      return;
+    }
     router.push({
       path: `/pedido/${mesa.sesionId}`,
       query: { mesa: mesa.numero },

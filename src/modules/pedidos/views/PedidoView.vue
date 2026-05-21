@@ -9,6 +9,7 @@ import {
   type ProductoDTO,
 } from "@/modules/catalogo/api/menuApi";
 import { pedidosApi, type ItemPedido } from "@/modules/pedidos/api/pedidosApi";
+import { mesasApi } from "@/modules/mesas/api/mesasApi";
 import Button from "primevue/button";
 import InputText from "primevue/inputtext";
 import InputNumber from "primevue/inputnumber";
@@ -68,6 +69,15 @@ onMounted(async () => {
 });
 
 function seleccionarProducto(producto: ProductoDTO) {
+  if (!producto.disponible) {
+    toast.add({
+      severity: "warn",
+      summary: "Producto no disponible",
+      detail: "No se puede agregar al pedido",
+      life: 2500,
+    });
+    return;
+  }
   productoPendiente.value = producto;
   cantidad.value = 1;
 }
@@ -86,6 +96,11 @@ async function agregarProducto() {
     });
     return;
   }
+  const subtotal = Number(productoPendiente.value.precio) * Number(cantidad.value);
+  const ok = window.confirm(
+    `Confirmar pedido\n\n${cantidad.value} x ${productoPendiente.value.nombre}\nTotal parcial: S/ ${subtotal.toFixed(2)}`,
+  );
+  if (!ok) return;
 
   agregando.value = true;
   try {
@@ -118,6 +133,23 @@ async function agregarProducto() {
     agregando.value = false;
   }
 }
+
+async function volverAMesas() {
+  if (items.value.length === 0) {
+    try {
+      await mesasApi.cerrarSesion(sesionId);
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { message?: string } } };
+      toast.add({
+        severity: "warn",
+        summary: "Mesa no liberada",
+        detail: err.response?.data?.message ?? "No se pudo liberar la mesa",
+        life: 3000,
+      });
+    }
+  }
+  router.push("/mesas");
+}
 </script>
 
 <template>
@@ -126,7 +158,7 @@ async function agregarProducto() {
       <div class="pedido-header-left">
         <button
           class="icon-back"
-          @click="router.push('/mesas')"
+          @click="volverAMesas"
           title="Volver a mesas"
         >
           <i class="pi pi-arrow-left"></i>
@@ -215,11 +247,13 @@ async function agregarProducto() {
             v-for="prod in productosActivos"
             :key="prod.id"
             class="producto-item"
-            :class="{ 'producto-loading': agregando, selected: productoPendiente?.id === prod.id }"
+            :class="{ 'producto-loading': agregando, selected: productoPendiente?.id === prod.id, unavailable: !prod.disponible }"
             @click="seleccionarProducto(prod)"
           >
             <span class="prod-nombre">{{ prod.nombre }}</span>
-            <span class="prod-precio">S/ {{ prod.precio.toFixed(2) }}</span>
+            <span class="prod-precio">
+              {{ prod.disponible ? `S/ ${prod.precio.toFixed(2)}` : "No disponible" }}
+            </span>
           </div>
         </div>
 
@@ -276,7 +310,7 @@ async function agregarProducto() {
             severity="secondary"
             outlined
             size="small"
-            @click="router.push('/mesas')"
+            @click="volverAMesas"
           />
         </div>
       </main>

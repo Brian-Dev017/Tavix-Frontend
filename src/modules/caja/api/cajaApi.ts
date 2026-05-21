@@ -37,6 +37,7 @@ export interface EmitirComprobanteRequest {
   datosComprobante?: DatosComprobanteRequest
   descuento?: number
   motivoDescuento?: string
+  efectivoRecibido?: number
 }
 
 export interface ComprobanteResponse {
@@ -46,10 +47,13 @@ export interface ComprobanteResponse {
   serie: string
   numero: number
   metodoPago: string
+  tipoComprobanteNombre: string
   subtotal: number
   igv: number
   descuento: number
   total: number
+  efectivoRecibido: number | null
+  vuelto: number
   estado: string
   pagadoEn: string
 }

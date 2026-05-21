@@ -74,8 +74,8 @@ export const adminApi = {
   crearUsuario: (req: CrearUsuarioRequest) => api.post<{ data: UsuarioAdmin }>('/api/admin/usuarios', req),
   actualizarUsuario: (id: number, req: ActualizarUsuarioRequest) =>
     api.put<{ data: UsuarioAdmin }>(`/api/admin/usuarios/${id}`, req),
-  resetPassword: (id: number, nuevaContrasena: string) =>
-    api.patch(`/api/admin/usuarios/${id}/contrasena`, { nuevaContrasena }),
+  resetPassword: (id: number, claveAnterior: string, nuevaContrasena: string) =>
+    api.patch(`/api/admin/usuarios/${id}/contrasena`, { claveAnterior, nuevaContrasena }),
   eliminarUsuario: (id: number) => api.delete(`/api/admin/usuarios/${id}`),
 
   // Productos
@@ -100,4 +100,19 @@ export const adminApi = {
     api.put<{ data: MesaAdmin }>(`/api/admin/mesas/${id}`, req),
   toggleEstadoMesa: (id: number) => api.patch<{ data: MesaAdmin }>(`/api/admin/mesas/${id}/estado`, {}),
   eliminarMesa: (id: number) => api.delete(`/api/admin/mesas/${id}`),
+
+  listarComprobantesEmitidos: () =>
+    api.get<{ data: Array<{
+      id: number
+      pedidoId: number
+      tipoComprobante: string
+      serie: string
+      numero: number
+      metodoPago: string
+      total: number
+      estado: string
+      pagadoEn: string
+    }> }>('/api/admin/comprobantes/emitidos'),
+  anularComprobante: (id: number, motivo: string) =>
+    api.patch(`/api/admin/comprobantes/${id}/anular`, { motivo }),
 }

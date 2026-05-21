@@ -68,6 +68,22 @@ async function cargar() {
   }
 }
 
+function exportarCsv() {
+  if (!reporte.value) return;
+  const rows = [
+    ["Fecha", "Comprobantes", "Total"],
+    ...reporte.value.ventasPorDia.map((d) => [d.fecha, String(d.cantidad), String(d.total)]),
+  ];
+  const csv = rows.map((row) => row.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `ventas-${fmtDate(desde.value)}-${fmtDate(hasta.value)}.csv`;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
 const barData = computed(() => {
   const dias = reporte.value?.ventasPorDia ?? [];
   return {
@@ -162,6 +178,14 @@ onMounted(cargar);
           size="small"
           :loading="loading"
           @click="cargar"
+        />
+        <Button
+          label="Exportar"
+          icon="pi pi-download"
+          size="small"
+          severity="secondary"
+          :disabled="!reporte"
+          @click="exportarCsv"
         />
       </div>
     </div>
