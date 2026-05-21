@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from "vue";
+import { ref } from "vue";
 import { useToast } from "primevue/usetoast";
 import Toast from "primevue/toast";
 import Button from "primevue/button";
@@ -11,23 +11,31 @@ import { useAuthStore, normalizeAuthRole } from "@/modules/auth/store/authStore"
 import { decodeJwtPayload } from "@/shared/auth/jwt";
 import { reportesApi } from "@/modules/admin/api/reportesApi";
 import { loadComprobantePdfData, openComprobantePdf } from "@/shared/utils/comprobantePdf";
-import { password, required, username } from "@/shared/validation/inputValidation";
+import { onlyDigits, password, required, username } from "@/shared/validation/inputValidation";
 
 const toast = useToast();
 const auth = useAuthStore();
 const items = ref<ComprobanteEmitidoAdmin[]>([]);
 const loading = ref(false);
 const anulando = ref(false);
+const searched = ref(false);
+const numeroBusqueda = ref("");
 const motivo = ref<Record<number, string>>({});
 const credDialog = ref(false);
 const selected = ref<ComprobanteEmitidoAdmin | null>(null);
 const credenciales = ref({ usuario: "", contrasena: "" });
-let refresco: ReturnType<typeof setInterval> | null = null;
 
-async function cargar() {
+async function buscar() {
+  const numero = Number(onlyDigits(numeroBusqueda.value));
+  if (!numero) {
+    toast.add({ severity: "warn", summary: "Ingresa un numero valido", life: 2500 });
+    return;
+  }
+
   loading.value = true;
+  searched.value = true;
   try {
-    items.value = (await adminApi.listarComprobantesEmitidos()).data.data;
+    items.value = (await adminApi.buscarComprobantesEmitidos(numero)).data.data;
   } catch {
     toast.add({ severity: "error", summary: "Error al cargar comprobantes", life: 3000 });
   } finally {
@@ -71,7 +79,7 @@ async function anular() {
     });
     credDialog.value = false;
     toast.add({ severity: "success", summary: "Comprobante anulado", life: 2500 });
-    await cargar();
+    await buscar();
   } catch (e: unknown) {
     const err = e as { response?: { data?: { message?: string } }; message?: string };
     toast.add({ severity: "error", summary: "Error al anular", detail: err.response?.data?.message ?? err.message, life: 3000 });
@@ -117,15 +125,6 @@ async function verPdf(item: ComprobanteEmitidoAdmin) {
 function fmtSol(n: number) {
   return `S/ ${Number(n ?? 0).toFixed(2)}`;
 }
-
-onMounted(() => {
-  cargar();
-  refresco = setInterval(cargar, 15000);
-});
-
-onUnmounted(() => {
-  if (refresco) clearInterval(refresco);
-});
 </script>
 
 <template>
@@ -134,9 +133,17 @@ onUnmounted(() => {
     <div class="section-header">
       <div>
         <h1 class="section-title"><i class="pi pi-times-circle"></i> Anulaciones</h1>
-        <p class="section-sub">Boletas y facturas emitidas pendientes de validacion</p>
+        <p class="section-sub">Busca un comprobante por numero antes de anularlo</p>
       </div>
-      <Button label="Actualizar" icon="pi pi-refresh" size="small" :loading="loading" @click="cargar" />
+      <div class="search-row">
+        <InputText
+          v-model="numeroBusqueda"
+          placeholder="Numero de comprobante"
+          fluid
+          @keyup.enter="buscar"
+        />
+        <Button label="Buscar" icon="pi pi-search" size="small" :loading="loading" @click="buscar" />
+      </div>
     </div>
 
     <div class="table-wrap">
@@ -153,8 +160,9 @@ onUnmounted(() => {
           </tr>
         </thead>
         <tbody>
-          <tr v-if="loading"><td colspan="7" class="empty-cell">Cargando...</td></tr>
-          <tr v-else-if="items.length === 0"><td colspan="7" class="empty-cell">Sin boletas o facturas emitidas</td></tr>
+          <tr v-if="loading"><td colspan="7" class="empty-cell">Buscando...</td></tr>
+          <tr v-else-if="!searched"><td colspan="7" class="empty-cell">Ingresa un numero de comprobante para buscar</td></tr>
+          <tr v-else-if="items.length === 0"><td colspan="7" class="empty-cell">No se encontraron comprobantes con ese numero</td></tr>
           <tr v-for="c in items" :key="c.id">
             <td>{{ c.tipoComprobante }} {{ c.serie }}-{{ String(c.numero).padStart(8, "0") }}</td>
             <td>P-{{ c.pedidoId }}</td>
@@ -198,6 +206,7 @@ onUnmounted(() => {
 .section-title { font-family: $font-heading; font-size: 1.1rem; font-weight: 700; color: $c-red; margin: 0; }
 .section-title i { margin-right: 0.4rem; }
 .section-sub { font-size: 0.75rem; color: $text-muted; margin: 0.15rem 0 0; }
+.search-row { display: flex; align-items: center; gap: 0.75rem; min-width: min(30rem, 100%); }
 .table-wrap { background: $bg-card; border: 1px solid $border-subtle; border-radius: $r-md; overflow-x: auto; }
 .data-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
 .data-table th { background: $bg-surface; padding: 0.6rem 0.9rem; text-align: left; font-size: 0.68rem; color: $text-muted; text-transform: uppercase; }
@@ -208,4 +217,8 @@ onUnmounted(() => {
 .dialog-copy { margin: 0; color: $text-muted; font-size: 0.8rem; line-height: 1.45; }
 .field-stack { display: flex; flex-direction: column; gap: 0.35rem; }
 .field-stack label { color: $text-muted; font-size: 0.76rem; font-weight: 600; }
+
+@media (max-width: 720px) {
+  .search-row { width: 100%; flex-direction: column; align-items: stretch; }
+}
 </style>

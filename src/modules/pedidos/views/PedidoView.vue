@@ -11,6 +11,7 @@ import {
 import { pedidosApi, type ItemPedido } from "@/modules/pedidos/api/pedidosApi";
 import { mesasApi } from "@/modules/mesas/api/mesasApi";
 import Button from "primevue/button";
+import Dialog from "primevue/dialog";
 import InputText from "primevue/inputtext";
 import InputNumber from "primevue/inputnumber";
 import Badge from "primevue/badge";
@@ -44,6 +45,7 @@ const cantidad = ref(1);
 const observacion = ref("");
 const loading = ref(true);
 const agregando = ref(false);
+const confirmDialogVisible = ref(false);
 let pendingSequence = 0;
 
 const productosActivos = computed(
@@ -61,6 +63,22 @@ const totalPendiente = computed(() =>
 const totalGeneral = computed(() => totalPedido.value + totalPendiente.value);
 
 const totalItemsVista = computed(() => items.value.length + itemsPendientes.value.length);
+
+const itemsAgrupados = computed(() => {
+  const grouped = new Map<string, ItemPedido>();
+  for (const item of items.value) {
+    const key = `${item.productoId}-${item.estado}`;
+    const current = grouped.get(key);
+    if (current) {
+      current.cantidad += item.cantidad;
+      current.subtotal += item.subtotal;
+      current.observaciones = mergeObservaciones(current.observaciones, item.observaciones);
+      continue;
+    }
+    grouped.set(key, { ...item });
+  }
+  return Array.from(grouped.values());
+});
 
 onMounted(async () => {
   loading.value = true;
@@ -117,15 +135,23 @@ async function agregarProducto() {
     return;
   }
   const producto = productoPendiente.value;
-  itemsPendientes.value.push({
-    localId: ++pendingSequence,
-    productoId: producto.id,
-    productoNombre: producto.nombre,
-    cantidad: Number(cantidad.value),
-    precio: Number(producto.precio),
-    subtotal: Number(producto.precio) * Number(cantidad.value),
-    observaciones: cleanText(observacion.value),
-  });
+  const observacionesLimpias = cleanText(observacion.value);
+  const existente = itemsPendientes.value.find((item) => item.productoId === producto.id);
+  if (existente) {
+    existente.cantidad += Number(cantidad.value);
+    existente.subtotal += Number(producto.precio) * Number(cantidad.value);
+    existente.observaciones = mergeObservaciones(existente.observaciones, observacionesLimpias);
+  } else {
+    itemsPendientes.value.push({
+      localId: ++pendingSequence,
+      productoId: producto.id,
+      productoNombre: producto.nombre,
+      cantidad: Number(cantidad.value),
+      precio: Number(producto.precio),
+      subtotal: Number(producto.precio) * Number(cantidad.value),
+      observaciones: observacionesLimpias,
+    });
+  }
   observacion.value = "";
   cantidad.value = 1;
   productoPendiente.value = null;
@@ -141,13 +167,14 @@ function quitarPendiente(localId: number) {
   itemsPendientes.value = itemsPendientes.value.filter((item) => item.localId !== localId);
 }
 
+function abrirConfirmacionPedido() {
+  if (!pedidoId.value || itemsPendientes.value.length === 0) return;
+  confirmDialogVisible.value = true;
+}
+
 async function confirmarPedido() {
   if (!pedidoId.value || itemsPendientes.value.length === 0) return;
-  const ok = window.confirm(
-    `Confirmar pedido\n\nItems: ${itemsPendientes.value.length}\nTotal: S/ ${totalPendiente.value.toFixed(2)}`,
-  );
-  if (!ok) return;
-
+  confirmDialogVisible.value = false;
   agregando.value = true;
   try {
     const enviados = [];
@@ -200,6 +227,14 @@ async function volverAMesas() {
     }
   }
   router.push("/mesas");
+}
+
+function mergeObservaciones(actual: string, incoming: string) {
+  const base = cleanText(actual);
+  const next = cleanText(incoming);
+  if (!base) return next;
+  if (!next || base.toLowerCase() === next.toLowerCase()) return base;
+  return `${base} | ${next}`;
 }
 </script>
 
@@ -354,25 +389,25 @@ async function volverAMesas() {
             </div>
           </div>
 
-          <div v-if="items.length > 0" class="list-block">
+          <div v-if="itemsAgrupados.length > 0" class="list-block">
             <div class="list-block-title">Enviados</div>
-          <div v-for="item in items" :key="item.detalleId" class="item-row">
-            <div class="item-info">
-              <span class="item-nombre">
-                {{ item.cantidad }}x {{ item.productoNombre }}
-              </span>
-              <span v-if="item.observaciones" class="item-observacion">
-                {{ item.observaciones }}
-              </span>
-              <Badge
-                :value="item.estado"
-                severity="secondary"
-                class="item-estado"
-              />
+            <div v-for="item in itemsAgrupados" :key="`${item.productoId}-${item.estado}`" class="item-row">
+              <div class="item-info">
+                <span class="item-nombre">
+                  {{ item.cantidad }}x {{ item.productoNombre }}
+                </span>
+                <span v-if="item.observaciones" class="item-observacion">
+                  {{ item.observaciones }}
+                </span>
+                <Badge
+                  :value="item.estado"
+                  severity="secondary"
+                  class="item-estado"
+                />
+              </div>
+              <span class="item-precio">S/ {{ item.subtotal.toFixed(2) }}</span>
             </div>
-            <span class="item-precio">S/ {{ item.subtotal.toFixed(2) }}</span>
           </div>
-        </div>
         </div>
 
         <div class="pedido-footer" v-if="totalItemsVista > 0">
@@ -390,7 +425,7 @@ async function volverAMesas() {
             icon="pi pi-check"
             size="small"
             :loading="agregando"
-            @click="confirmarPedido"
+            @click="abrirConfirmacionPedido"
           />
           <Button
             label="Volver a mesas"
@@ -409,6 +444,34 @@ async function volverAMesas() {
     <div class="spinner"></div>
     <p>Cargando pedido...</p>
   </div>
+
+  <Dialog
+    v-model:visible="confirmDialogVisible"
+    header="Confirmar pedido"
+    modal
+    :style="{ width: '28rem', maxWidth: '95vw' }"
+  >
+    <div class="dialog-copy">
+      <p>Se enviaran {{ itemsPendientes.length }} item{{ itemsPendientes.length !== 1 ? "s" : "" }} a cocina.</p>
+      <p>Total a enviar: <strong>S/ {{ totalPendiente.toFixed(2) }}</strong></p>
+    </div>
+
+    <template #footer>
+      <Button
+        label="Cancelar"
+        severity="secondary"
+        text
+        :disabled="agregando"
+        @click="confirmDialogVisible = false"
+      />
+      <Button
+        label="Confirmar pedido"
+        icon="pi pi-check"
+        :loading="agregando"
+        @click="confirmarPedido"
+      />
+    </template>
+  </Dialog>
 </template>
 
 <style scoped lang="scss" src="./PedidoView.scss"></style>

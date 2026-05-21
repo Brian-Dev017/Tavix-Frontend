@@ -115,6 +115,8 @@ export const adminApi = {
 
   listarComprobantesEmitidos: () =>
     api.get<{ data: ComprobanteEmitidoAdmin[] }>('/api/admin/comprobantes/emitidos'),
+  buscarComprobantesEmitidos: (numero: number) =>
+    api.get<{ data: ComprobanteEmitidoAdmin[] }>('/api/admin/comprobantes/emitidos/buscar', { params: { numero } }),
   anularComprobante: (id: number, motivo: string, credenciales?: { usuario: string; contrasena: string }) =>
     api.patch(`/api/admin/comprobantes/${id}/anular`, { motivo, ...credenciales }),
 }

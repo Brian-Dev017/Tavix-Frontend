@@ -9,7 +9,6 @@ import { reportesApi, type Arqueo } from "@/modules/admin/api/reportesApi";
 import { authApi } from "@/modules/auth/api/authApi";
 import { useAuthStore, normalizeAuthRole } from "@/modules/auth/store/authStore";
 import { decodeJwtPayload } from "@/shared/auth/jwt";
-import { mesasApi } from "@/modules/mesas/api/mesasApi";
 import {
   downloadComprobantePdf,
   saveComprobantePdfData,
@@ -25,6 +24,7 @@ import {
   dni,
   firstError,
   maxLength,
+  nameText,
   numberRange,
   oneOf,
   password,
@@ -44,6 +44,8 @@ const loading = ref(true);
 const procesando = ref(false);
 const cajaDialog = ref(false);
 const validandoCaja = ref(false);
+const precierreDialog = ref(false);
+const guardandoPrecierre = ref(false);
 const arqueoActivo = ref<Arqueo | null>(null);
 
 const pedidoSeleccionado = ref<PedidoResumen | null>(null);
@@ -59,6 +61,10 @@ const aperturaForm = ref({
   usuario: "",
   contrasena: "",
   montoApertura: 0,
+  notas: "",
+});
+const precierreForm = ref({
+  montoEfectivo: 0,
   notas: "",
 });
 let refresco: ReturnType<typeof setInterval> | null = null;
@@ -88,9 +94,25 @@ const totalFinal = computed(() => {
   return Math.max(0, Number(pedidoSeleccionado.value.totalConIgv) - Number(descuento.value || 0));
 });
 
+function roundCashDown(value: number) {
+  return Math.floor(value * 10) / 10;
+}
+
+const totalCobro = computed(() =>
+  metodoPago.value === "EFECTIVO"
+    ? roundCashDown(totalFinal.value)
+    : Number(totalFinal.value.toFixed(2)),
+);
+
+const redondeoEfectivo = computed(() =>
+  metodoPago.value === "EFECTIVO"
+    ? Number((totalFinal.value - totalCobro.value).toFixed(2))
+    : 0,
+);
+
 const vuelto = computed(() =>
   metodoPago.value === "EFECTIVO"
-    ? Math.max(0, Number(efectivoRecibido.value || 0) - totalFinal.value)
+    ? Math.max(0, Number(efectivoRecibido.value || 0) - totalCobro.value)
     : 0,
 );
 
@@ -105,6 +127,9 @@ const cajaBloqueadaPorOtroUsuario = computed(
 );
 
 const nombreCajaActiva = computed(() => arqueoActivo.value?.nombreCajero ?? "otro cajero");
+const montoPrecierreRegistrado = computed(() =>
+  cajaActiva.value ? Number(arqueoActivo.value?.montoCierre ?? 0) : 0,
+);
 
 async function cargarPedidos(silent = false) {
   if (!silent) loading.value = true;
@@ -159,7 +184,7 @@ function seleccionarPedido(p: PedidoResumen) {
   direccion.value = "";
   descuento.value = 0;
   motivoDescuento.value = "";
-  efectivoRecibido.value = Number(p.totalConIgv || 0);
+  efectivoRecibido.value = roundCashDown(Number(p.totalConIgv || 0));
 }
 
 function cancelarSeleccion() {
@@ -190,14 +215,14 @@ async function cobrar() {
     ),
     tipoComprobante.value === "F" && ruc(rucDni.value),
     tipoComprobante.value === "B" && dni(rucDni.value, "DNI"),
-    requiereDatos.value && required(razonSocial.value, "Razon social / Nombre"),
-    requiereDatos.value && required(direccion.value, "Direccion"),
-    requiereDatos.value && maxLength(razonSocial.value, "Razon social / Nombre", 120),
-    maxLength(direccion.value, "Direccion", 160),
+    tipoComprobante.value === "B" && nameText(razonSocial.value, "Nombre del cliente"),
+    tipoComprobante.value === "F" && nameText(razonSocial.value, "Razon social"),
+    tipoComprobante.value === "F" && required(direccion.value, "Direccion"),
+    !required(direccion.value, "Direccion") && maxLength(direccion.value, "Direccion", 160),
     numberRange(descuento.value, "Descuento", 0, pedidoSeleccionado.value.totalConIgv),
     Number(descuento.value || 0) > 0 && required(motivoDescuento.value, "Motivo de descuento"),
     maxLength(motivoDescuento.value, "Motivo de descuento", 160),
-    metodoPago.value === "EFECTIVO" && numberRange(efectivoRecibido.value, "Efectivo recibido", totalFinal.value, 999999),
+    metodoPago.value === "EFECTIVO" && numberRange(efectivoRecibido.value, "Efectivo recibido", totalCobro.value, 999999),
   ]);
   if (validationError) {
     toast.add({
@@ -254,7 +279,6 @@ async function cobrar() {
     };
     saveComprobantePdfData(pdfData);
     downloadComprobantePdf(pdfData);
-    await liberarMesaPagada(pedidoActual.mesa);
     toast.add({
       severity: "success",
       summary: "Cobrado",
@@ -280,22 +304,6 @@ function fmt(v: number) {
   return `S/ ${Number(v).toFixed(2)}`;
 }
 
-async function liberarMesaPagada(mesaCodigo: string) {
-  try {
-    const res = await mesasApi.listar();
-    const mesa = res.data.data.find((item) => String(item.numero).trim() === String(mesaCodigo).trim());
-    if (!mesa?.sesionId) return;
-    await mesasApi.cerrarSesion(mesa.sesionId);
-  } catch {
-    toast.add({
-      severity: "warn",
-      summary: "Mesa no liberada",
-      detail: "El cobro se registro, pero no se pudo liberar la mesa automaticamente",
-      life: 3500,
-    });
-  }
-}
-
 function formatFecha(iso: string | null | undefined) {
   if (!iso) return "--";
   return new Date(iso).toLocaleString("es-PE", {
@@ -315,6 +323,14 @@ function abrirDialogoCaja() {
     notas: "",
   };
   cajaDialog.value = true;
+}
+
+function abrirDialogoPrecierre() {
+  precierreForm.value = {
+    montoEfectivo: Number(arqueoActivo.value?.montoCierre ?? arqueoActivo.value?.montoEsperado ?? 0),
+    notas: "",
+  };
+  precierreDialog.value = true;
 }
 
 async function aperturarCaja() {
@@ -380,6 +396,50 @@ async function aperturarCaja() {
     });
   } finally {
     validandoCaja.value = false;
+  }
+}
+
+async function registrarPrecierre() {
+  if (!arqueoActivo.value) return;
+  const validationError = firstError([
+    numberRange(precierreForm.value.montoEfectivo, "Monto en efectivo", 0, 999999),
+    maxLength(precierreForm.value.notas, "Notas", 180),
+  ]);
+  if (validationError) {
+    toast.add({
+      severity: "warn",
+      summary: "Revisa el pre-cierre",
+      detail: validationError,
+      life: 3000,
+    });
+    return;
+  }
+
+  guardandoPrecierre.value = true;
+  try {
+    const res = await reportesApi.registrarPrecierre(
+      arqueoActivo.value.id,
+      Number(precierreForm.value.montoEfectivo || 0),
+      cleanText(precierreForm.value.notas) || undefined,
+    );
+    arqueoActivo.value = res.data.data;
+    precierreDialog.value = false;
+    toast.add({
+      severity: "success",
+      summary: "Pre-cierre registrado",
+      detail: "El efectivo contado quedo listo para revision del administrador",
+      life: 3000,
+    });
+  } catch (e: unknown) {
+    const err = e as { response?: { data?: { message?: string } }; message?: string };
+    toast.add({
+      severity: "error",
+      summary: "No se pudo registrar el pre-cierre",
+      detail: err.response?.data?.message ?? err.message ?? "Intentalo nuevamente",
+      life: 3500,
+    });
+  } finally {
+    guardandoPrecierre.value = false;
   }
 }
 
@@ -500,6 +560,9 @@ onUnmounted(() => {
               Debes validar tus credenciales antes de empezar a cobrar.
             </span>
           </div>
+          <div v-if="cajaActivaDelUsuario && montoPrecierreRegistrado > 0" class="caja-status-body">
+            <span>Pre-cierre registrado: {{ fmt(montoPrecierreRegistrado) }}</span>
+          </div>
 
           <Button
             v-if="!cajaActiva"
@@ -509,7 +572,15 @@ onUnmounted(() => {
             @click="abrirDialogoCaja"
           />
           <Button
-            v-else-if="isAdmin"
+            v-else-if="cajaActivaDelUsuario"
+            label="Registrar pre-cierre"
+            icon="pi pi-wallet"
+            severity="contrast"
+            size="small"
+            @click="abrirDialogoPrecierre"
+          />
+          <Button
+            v-if="cajaActiva && isAdmin"
             label="Ver en admin"
             icon="pi pi-shield"
             severity="secondary"
@@ -596,9 +667,13 @@ onUnmounted(() => {
               <span>Descuento</span>
               <span class="val">{{ fmt(descuento || 0) }}</span>
             </div>
+            <div v-if="metodoPago === 'EFECTIVO' && redondeoEfectivo > 0" class="resumen-row">
+              <span>Redondeo efectivo</span>
+              <span class="val">-{{ fmt(redondeoEfectivo) }}</span>
+            </div>
             <div class="resumen-total">
               <span>Total</span>
-              <span class="val">{{ fmt(totalFinal) }}</span>
+              <span class="val">{{ fmt(totalCobro) }}</span>
             </div>
           </div>
 
@@ -633,7 +708,7 @@ onUnmounted(() => {
               :maxFractionDigits="2"
               fluid
             />
-            <small class="cash-change">Vuelto: {{ fmt(vuelto) }}</small>
+            <small class="cash-change">Total a cobrar: {{ fmt(totalCobro) }} · Vuelto: {{ fmt(vuelto) }}</small>
           </div>
 
           <div v-if="isAdmin" class="form-field">
@@ -680,7 +755,7 @@ onUnmounted(() => {
               @click="cancelarSeleccion"
             />
             <Button
-              :label="`Cobrar ${fmt(totalFinal)}`"
+              :label="`Cobrar ${fmt(totalCobro)}`"
               icon="pi pi-receipt"
               severity="success"
               :disabled="pedidoSeleccionado.estadoPedido !== 'LISTO' || !cajaActivaDelUsuario"
@@ -756,6 +831,55 @@ onUnmounted(() => {
           icon="pi pi-check"
           :loading="validandoCaja"
           @click="aperturarCaja"
+        />
+      </template>
+    </Dialog>
+
+    <Dialog
+      v-model:visible="precierreDialog"
+      header="Registrar pre-cierre"
+      modal
+      :style="{ width: '30rem', maxWidth: '95vw' }"
+    >
+      <div class="dialog-form">
+        <p class="dialog-copy">
+          Registra el efectivo contado en caja. El cierre completo lo realizara administracion.
+        </p>
+
+        <div class="form-field">
+          <label>Efectivo contado</label>
+          <InputNumber
+            v-model="precierreForm.montoEfectivo"
+            :min="0"
+            :minFractionDigits="2"
+            :maxFractionDigits="2"
+            fluid
+          />
+        </div>
+
+        <div class="form-field">
+          <label>Notas</label>
+          <InputText
+            v-model="precierreForm.notas"
+            placeholder="Observaciones opcionales"
+            fluid
+          />
+        </div>
+      </div>
+
+      <template #footer>
+        <Button
+          label="Cancelar"
+          severity="secondary"
+          text
+          :disabled="guardandoPrecierre"
+          @click="precierreDialog = false"
+        />
+        <Button
+          label="Guardar pre-cierre"
+          icon="pi pi-check"
+          :loading="guardandoPrecierre"
+          @click="registrarPrecierre"
         />
       </template>
     </Dialog>
