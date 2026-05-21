@@ -88,6 +88,7 @@ export interface Arqueo {
   totalVentas: number | null
   totalEfectivo: number | null
   totalDigital: number | null
+  totalRedondeo: number | null
   montoEsperado: number | null
   diferencia: number | null
   estado: 'ABIERTO' | 'CERRADO'

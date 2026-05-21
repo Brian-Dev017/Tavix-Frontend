@@ -106,6 +106,10 @@ function roundCashDown(value: number) {
   return Math.floor(value * 10) / 10;
 }
 
+function cubreTotalRedondeado(efectivo: number, total: number) {
+  return Number(efectivo) + 0.000001 >= Number(total);
+}
+
 const totalCobro = computed(() =>
   metodoPago.value === "EFECTIVO"
     ? roundCashDown(totalFinal.value)
@@ -261,7 +265,9 @@ async function cobrar() {
     numberRange(descuento.value, "Descuento", 0, pedidoSeleccionado.value.totalConIgv),
     Number(descuento.value || 0) > 0 && required(motivoDescuento.value, "Motivo de descuento"),
     maxLength(motivoDescuento.value, "Motivo de descuento", 160),
-    metodoPago.value === "EFECTIVO" && numberRange(efectivoRecibido.value, "Efectivo recibido", totalCobro.value, 999999),
+    metodoPago.value === "EFECTIVO" && numberRange(efectivoRecibido.value, "Efectivo recibido", 0, 999999),
+    metodoPago.value === "EFECTIVO" && !cubreTotalRedondeado(Number(efectivoRecibido.value || 0), totalCobro.value) &&
+      "El efectivo recibido no cubre el total redondeado",
   ]);
   if (validationError) {
     toast.add({
