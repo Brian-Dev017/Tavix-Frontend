@@ -63,6 +63,15 @@ export function nameText(value: unknown, label: string): string | null {
     : `${label} contiene caracteres no permitidos`;
 }
 
+export function personNameText(value: unknown, label: string): string | null {
+  const text = cleanText(value);
+  if (!text) return `${label} es obligatorio`;
+  if (text.length > 80) return `${label} no debe superar 80 caracteres`;
+  return /^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ ]+$/.test(text)
+    ? null
+    : `${label} solo debe contener letras`;
+}
+
 export function username(value: unknown): string | null {
   const text = cleanText(value);
   if (!text) return "Usuario es obligatorio";

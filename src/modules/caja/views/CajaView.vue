@@ -6,6 +6,7 @@ import { performLogout } from "@/shared/auth/logout";
 import { useRol } from "@/shared/composables/useRol";
 import { cajaApi, type PedidoResumen } from "@/modules/caja/api/cajaApi";
 import { reportesApi, type Arqueo } from "@/modules/admin/api/reportesApi";
+import { configuracionApi, type NegocioConfig } from "@/modules/admin/api/configuracionApi";
 import { authApi } from "@/modules/auth/api/authApi";
 import { useAuthStore, normalizeAuthRole } from "@/modules/auth/store/authStore";
 import { decodeJwtPayload } from "@/shared/auth/jwt";
@@ -25,6 +26,7 @@ import {
   firstError,
   maxLength,
   nameText,
+  personNameText,
   numberRange,
   oneOf,
   password,
@@ -46,12 +48,16 @@ const cajaDialog = ref(false);
 const validandoCaja = ref(false);
 const precierreDialog = ref(false);
 const guardandoPrecierre = ref(false);
+const validandoPrecierre = ref(false);
 const arqueoActivo = ref<Arqueo | null>(null);
+const negocio = ref<NegocioConfig | null>(null);
 
 const pedidoSeleccionado = ref<PedidoResumen | null>(null);
 const tipoComprobante = ref("T");
 const metodoPago = ref("EFECTIVO");
 const rucDni = ref("");
+const nombreCliente = ref("");
+const apellidoCliente = ref("");
 const razonSocial = ref("");
 const direccion = ref("");
 const descuento = ref(0);
@@ -64,6 +70,8 @@ const aperturaForm = ref({
   notas: "",
 });
 const precierreForm = ref({
+  usuario: "",
+  contrasena: "",
   montoEfectivo: 0,
   notas: "",
 });
@@ -175,11 +183,41 @@ async function recargarTodo() {
   await Promise.allSettled([cargarPedidos(), cargarArqueoActivo(true)]);
 }
 
+function keepDigits(value: string, max: number) {
+  return onlyDigits(value).slice(0, max);
+}
+
+function keepLetters(value: string) {
+  return value.replace(/[^A-Za-zÁÉÍÓÚÜÑáéíóúüñ ]+/g, "").replace(/\s+/g, " ");
+}
+
+function handleDocumentoInput(value: string | null | undefined) {
+  rucDni.value = keepDigits(String(value ?? ""), tipoComprobante.value === "F" ? 11 : 8);
+}
+
+function handleNombreInput(value: string | null | undefined) {
+  nombreCliente.value = keepLetters(String(value ?? ""));
+}
+
+function handleApellidoInput(value: string | null | undefined) {
+  apellidoCliente.value = keepLetters(String(value ?? ""));
+}
+
+async function cargarNegocio() {
+  try {
+    negocio.value = (await configuracionApi.getNegocio()).data.data;
+  } catch {
+    negocio.value = null;
+  }
+}
+
 function seleccionarPedido(p: PedidoResumen) {
   pedidoSeleccionado.value = p;
   tipoComprobante.value = "T";
   metodoPago.value = "EFECTIVO";
   rucDni.value = "";
+  nombreCliente.value = "";
+  apellidoCliente.value = "";
   razonSocial.value = "";
   direccion.value = "";
   descuento.value = 0;
@@ -215,7 +253,8 @@ async function cobrar() {
     ),
     tipoComprobante.value === "F" && ruc(rucDni.value),
     tipoComprobante.value === "B" && dni(rucDni.value, "DNI"),
-    tipoComprobante.value === "B" && nameText(razonSocial.value, "Nombre del cliente"),
+    tipoComprobante.value === "B" && personNameText(nombreCliente.value, "Nombre"),
+    tipoComprobante.value === "B" && personNameText(apellidoCliente.value, "Apellido"),
     tipoComprobante.value === "F" && nameText(razonSocial.value, "Razon social"),
     tipoComprobante.value === "F" && required(direccion.value, "Direccion"),
     !required(direccion.value, "Direccion") && maxLength(direccion.value, "Direccion", 160),
@@ -244,8 +283,10 @@ async function cobrar() {
       datosComprobante: requiereDatos.value
         ? {
             rucDni: onlyDigits(rucDni.value),
-            razonSocial: cleanText(razonSocial.value),
-            direccion: cleanText(direccion.value),
+            razonSocial: tipoComprobante.value === "B"
+              ? `${cleanText(nombreCliente.value)} ${cleanText(apellidoCliente.value)}`.trim()
+              : cleanText(razonSocial.value),
+            direccion: tipoComprobante.value === "F" ? cleanText(direccion.value) : "",
           }
         : undefined,
       descuento: isAdmin.value ? Number(descuento.value || 0) : 0,
@@ -258,6 +299,10 @@ async function cobrar() {
       comprobanteId: comp.id,
       pedidoId: comp.pedidoId,
       tipoComprobante: comp.tipoComprobanteNombre,
+      negocioNombre: negocio.value?.nombreComercial ?? "",
+      negocioRuc: negocio.value?.rucNegocio ?? "",
+      negocioDireccion: negocio.value?.direccion ?? "",
+      negocioLogoUrl: negocio.value?.logoUrl ?? "",
       serie: comp.serie,
       numero: comp.numero,
       metodoPago: comp.metodoPago,
@@ -267,8 +312,12 @@ async function cobrar() {
       total: comp.total,
       pagadoEn: comp.pagadoEn,
       clienteDocumento: requiereDatos.value ? onlyDigits(rucDni.value) : "",
-      clienteNombre: requiereDatos.value ? cleanText(razonSocial.value) : "",
-      clienteDireccion: requiereDatos.value ? cleanText(direccion.value) : "",
+      clienteNombre: requiereDatos.value
+        ? (tipoComprobante.value === "B"
+          ? `${cleanText(nombreCliente.value)} ${cleanText(apellidoCliente.value)}`.trim()
+          : cleanText(razonSocial.value))
+        : "",
+      clienteDireccion: tipoComprobante.value === "F" ? cleanText(direccion.value) : "",
       items: pedidoActual.items.map((item) => ({
         producto: item.productoNombre,
         cantidad: item.cantidad,
@@ -327,6 +376,8 @@ function abrirDialogoCaja() {
 
 function abrirDialogoPrecierre() {
   precierreForm.value = {
+    usuario: "",
+    contrasena: "",
     montoEfectivo: Number(arqueoActivo.value?.montoCierre ?? arqueoActivo.value?.montoEsperado ?? 0),
     notas: "",
   };
@@ -402,6 +453,8 @@ async function aperturarCaja() {
 async function registrarPrecierre() {
   if (!arqueoActivo.value) return;
   const validationError = firstError([
+    username(precierreForm.value.usuario),
+    password(precierreForm.value.contrasena),
     numberRange(precierreForm.value.montoEfectivo, "Monto en efectivo", 0, 999999),
     maxLength(precierreForm.value.notas, "Notas", 180),
   ]);
@@ -416,7 +469,20 @@ async function registrarPrecierre() {
   }
 
   guardandoPrecierre.value = true;
+  validandoPrecierre.value = true;
   try {
+    const loginRes = await authApi.login({
+      usuario: cleanText(precierreForm.value.usuario),
+      contrasena: precierreForm.value.contrasena,
+    });
+    const loginData = loginRes.data.data;
+    const rolValidado = normalizeAuthRole(loginData.rol);
+    const userIdValidado = Number(decodeJwtPayload(loginData.accessToken)?.sub ?? NaN);
+
+    if (!rolValidado || rolValidado !== auth.rol || userIdValidado !== auth.userId) {
+      throw new Error("Las credenciales no pertenecen al cajero actual");
+    }
+
     const res = await reportesApi.registrarPrecierre(
       arqueoActivo.value.id,
       Number(precierreForm.value.montoEfectivo || 0),
@@ -439,6 +505,7 @@ async function registrarPrecierre() {
       life: 3500,
     });
   } finally {
+    validandoPrecierre.value = false;
     guardandoPrecierre.value = false;
   }
 }
@@ -446,6 +513,7 @@ async function registrarPrecierre() {
 onMounted(() => {
   cargarPedidos();
   cargarArqueoActivo(true);
+  cargarNegocio();
   refresco = setInterval(() => cargarPedidos(true), 10000);
   refrescoCaja = setInterval(() => cargarArqueoActivo(true), 10000);
 });
@@ -734,17 +802,41 @@ onUnmounted(() => {
               <InputText
                 v-model="rucDni"
                 :placeholder="tipoComprobante === 'F' ? '20xxxxxxxxx' : '########'"
+                :maxlength="tipoComprobante === 'F' ? 11 : 8"
+                @update:modelValue="handleDocumentoInput"
                 fluid
               />
             </div>
-            <div class="form-field">
-              <label>Razon social / Nombre</label>
-              <InputText v-model="razonSocial" placeholder="Nombre o empresa" fluid />
-            </div>
-            <div class="form-field">
-              <label>Direccion</label>
-              <InputText v-model="direccion" placeholder="Av. ..." fluid />
-            </div>
+            <template v-if="tipoComprobante === 'B'">
+              <div class="form-field">
+                <label>Nombre</label>
+                <InputText
+                  v-model="nombreCliente"
+                  placeholder="Solo letras"
+                  @update:modelValue="handleNombreInput"
+                  fluid
+                />
+              </div>
+              <div class="form-field">
+                <label>Apellido</label>
+                <InputText
+                  v-model="apellidoCliente"
+                  placeholder="Solo letras"
+                  @update:modelValue="handleApellidoInput"
+                  fluid
+                />
+              </div>
+            </template>
+            <template v-else-if="tipoComprobante === 'F'">
+              <div class="form-field">
+                <label>Razon social</label>
+                <InputText v-model="razonSocial" placeholder="Empresa" fluid />
+              </div>
+              <div class="form-field">
+                <label>Direccion</label>
+                <InputText v-model="direccion" placeholder="Av. ..." fluid />
+              </div>
+            </template>
           </div>
 
           <div class="cobro-actions">
@@ -847,6 +939,25 @@ onUnmounted(() => {
         </p>
 
         <div class="form-field">
+          <label>Usuario</label>
+          <InputText
+            v-model="precierreForm.usuario"
+            placeholder="Tu usuario"
+            fluid
+          />
+        </div>
+
+        <div class="form-field">
+          <label>Contrasena</label>
+          <InputText
+            v-model="precierreForm.contrasena"
+            type="password"
+            placeholder="Tu contrasena"
+            fluid
+          />
+        </div>
+
+        <div class="form-field">
           <label>Efectivo contado</label>
           <InputNumber
             v-model="precierreForm.montoEfectivo"
@@ -878,7 +989,7 @@ onUnmounted(() => {
         <Button
           label="Guardar pre-cierre"
           icon="pi pi-check"
-          :loading="guardandoPrecierre"
+          :loading="guardandoPrecierre || validandoPrecierre"
           @click="registrarPrecierre"
         />
       </template>

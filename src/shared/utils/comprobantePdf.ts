@@ -10,6 +10,10 @@ export interface PdfComprobanteData {
   comprobanteId: number;
   pedidoId: number;
   tipoComprobante: string;
+  negocioNombre?: string;
+  negocioRuc?: string;
+  negocioDireccion?: string;
+  negocioLogoUrl?: string;
   serie: string;
   numero: number;
   metodoPago: string;
@@ -75,7 +79,9 @@ function fmtDate(value?: string | null): string {
 function buildLines(data: PdfComprobanteData): string[] {
   const code = `${data.serie}-${String(data.numero).padStart(8, "0")}`;
   const lines: string[] = [
-    "TAVIX",
+    sanitizeText(data.negocioNombre) || "TAVIX",
+    ...(data.negocioRuc ? [`RUC: ${sanitizeText(data.negocioRuc)}`] : []),
+    ...(data.negocioDireccion ? [sanitizeText(data.negocioDireccion)] : []),
     `Comprobante: ${data.tipoComprobante} ${code}`,
     `Pedido: P-${data.pedidoId}`,
     `Fecha: ${fmtDate(data.pagadoEn)}`,
