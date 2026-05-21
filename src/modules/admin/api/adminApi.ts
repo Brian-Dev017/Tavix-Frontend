@@ -63,6 +63,18 @@ export interface MesaAdmin {
   estado: 'DISPONIBLE' | 'OCUPADA' | 'RESERVADA' | 'INACTIVA'
 }
 
+export interface ComprobanteEmitidoAdmin {
+  id: number
+  pedidoId: number
+  tipoComprobante: string
+  serie: string
+  numero: number
+  metodoPago: string
+  total: number
+  estado: string
+  pagadoEn: string
+}
+
 export interface GuardarMesaRequest {
   numero: string
   capacidad: number
@@ -102,17 +114,7 @@ export const adminApi = {
   eliminarMesa: (id: number) => api.delete(`/api/admin/mesas/${id}`),
 
   listarComprobantesEmitidos: () =>
-    api.get<{ data: Array<{
-      id: number
-      pedidoId: number
-      tipoComprobante: string
-      serie: string
-      numero: number
-      metodoPago: string
-      total: number
-      estado: string
-      pagadoEn: string
-    }> }>('/api/admin/comprobantes/emitidos'),
-  anularComprobante: (id: number, motivo: string) =>
-    api.patch(`/api/admin/comprobantes/${id}/anular`, { motivo }),
+    api.get<{ data: ComprobanteEmitidoAdmin[] }>('/api/admin/comprobantes/emitidos'),
+  anularComprobante: (id: number, motivo: string, credenciales?: { usuario: string; contrasena: string }) =>
+    api.patch(`/api/admin/comprobantes/${id}/anular`, { motivo, ...credenciales }),
 }

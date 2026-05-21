@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from "vue";
+import { ref, onMounted } from "vue";
 import { useToast } from "primevue/usetoast";
 import Toast from "primevue/toast";
 import Button from "primevue/button";
@@ -10,6 +10,7 @@ import {
   type ComprobanteHistorial,
   type HistorialDetalle,
 } from "@/modules/admin/api/reportesApi";
+import { loadComprobantePdfData, openComprobantePdf } from "@/shared/utils/comprobantePdf";
 import { oneOf } from "@/shared/validation/inputValidation";
 
 const toast = useToast();
@@ -72,12 +73,13 @@ async function cargar(p = 0) {
 function prev() {
   if (page.value > 0) cargar(page.value - 1);
 }
+
 function next() {
   if (page.value < totalPages.value - 1) cargar(page.value + 1);
 }
 
 function fmtFecha(s: string | null) {
-  if (!s) return "—";
+  if (!s) return "--";
   return new Date(s).toLocaleString("es-PE", {
     day: "2-digit",
     month: "2-digit",
@@ -86,6 +88,7 @@ function fmtFecha(s: string | null) {
     minute: "2-digit",
   });
 }
+
 function fmtSol(n: number) {
   return `S/ ${Number(n ?? 0).toFixed(2)}`;
 }
@@ -96,6 +99,39 @@ async function verDetalle(id: number) {
     detalleDialog.value = true;
   } catch {
     toast.add({ severity: "error", summary: "Error al cargar detalle", life: 3000 });
+  }
+}
+
+async function verPdf(id: number) {
+  const guardado = loadComprobantePdfData(id);
+  if (guardado) {
+    openComprobantePdf(guardado);
+    return;
+  }
+  try {
+    const data = (await reportesApi.getHistorialDetalle(id)).data.data;
+    openComprobantePdf({
+      comprobanteId: data.comprobanteId,
+      pedidoId: data.pedidoId,
+      tipoComprobante: data.tipoComprobante,
+      serie: data.serie,
+      numero: data.numero,
+      metodoPago: data.metodoPago,
+      subtotal: data.subtotal,
+      igv: data.igv,
+      descuento: data.descuento,
+      total: data.total,
+      pagadoEn: data.pagadoEn,
+      items: data.items.map((item) => ({
+        producto: item.producto,
+        cantidad: item.cantidad,
+        precio: item.precio,
+        subtotal: item.subtotal,
+        observaciones: item.observaciones,
+      })),
+    });
+  } catch {
+    toast.add({ severity: "error", summary: "PDF no disponible", life: 3000 });
   }
 }
 
@@ -144,35 +180,39 @@ onMounted(() => cargar());
           <tr>
             <th>#</th>
             <th>Pedido</th>
-            <th>Método</th>
+            <th>Metodo</th>
             <th>Total</th>
             <th>Estado</th>
             <th>Pagado</th>
             <th>Creado</th>
+            <th>PDF</th>
             <th>Detalle</th>
           </tr>
         </thead>
         <tbody>
           <tr v-if="loading">
-            <td colspan="8" class="empty-cell">
-              <i class="pi pi-spinner pi-spin"></i> Cargando…
+            <td colspan="9" class="empty-cell">
+              <i class="pi pi-spinner pi-spin"></i> Cargando...
             </td>
           </tr>
           <tr v-else-if="items.length === 0">
-            <td colspan="8" class="empty-cell">Sin registros</td>
+            <td colspan="9" class="empty-cell">Sin registros</td>
           </tr>
           <tr v-for="c in items" :key="c.id">
             <td class="mono">{{ c.id }}</td>
             <td class="mono">P-{{ c.pedidoId }}</td>
-            <td>{{ c.metodoPago ?? "—" }}</td>
+            <td>{{ c.metodoPago ?? "--" }}</td>
             <td class="mono bold">{{ fmtSol(c.total) }}</td>
             <td>
-              <span class="badge" :class="estadoClass(c.estado ?? '')">{{
-                c.estado
-              }}</span>
+              <span class="badge" :class="estadoClass(c.estado ?? '')">
+                {{ c.estado }}
+              </span>
             </td>
             <td>{{ fmtFecha(c.pagadoEn) }}</td>
             <td>{{ fmtFecha(c.creadoEn) }}</td>
+            <td>
+              <Button icon="pi pi-file-pdf" text rounded size="small" @click="verPdf(c.id)" />
+            </td>
             <td>
               <Button icon="pi pi-eye" text rounded size="small" @click="verDetalle(c.id)" />
             </td>
@@ -201,25 +241,10 @@ onMounted(() => cargar());
       </div>
     </Dialog>
 
-    <!-- Pagination -->
     <div class="pagination-row">
-      <Button
-        icon="pi pi-chevron-left"
-        text
-        size="small"
-        :disabled="page === 0"
-        @click="prev"
-      />
-      <span class="page-info"
-        >Página {{ page + 1 }} de {{ totalPages || 1 }}</span
-      >
-      <Button
-        icon="pi pi-chevron-right"
-        text
-        size="small"
-        :disabled="page >= totalPages - 1"
-        @click="next"
-      />
+      <Button icon="pi pi-chevron-left" text size="small" :disabled="page === 0" @click="prev" />
+      <span class="page-info">Pagina {{ page + 1 }} de {{ totalPages || 1 }}</span>
+      <Button icon="pi pi-chevron-right" text size="small" :disabled="page >= totalPages - 1" @click="next" />
     </div>
   </div>
 </template>

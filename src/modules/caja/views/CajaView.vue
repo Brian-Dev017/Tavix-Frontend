@@ -9,6 +9,12 @@ import { reportesApi, type Arqueo } from "@/modules/admin/api/reportesApi";
 import { authApi } from "@/modules/auth/api/authApi";
 import { useAuthStore, normalizeAuthRole } from "@/modules/auth/store/authStore";
 import { decodeJwtPayload } from "@/shared/auth/jwt";
+import { mesasApi } from "@/modules/mesas/api/mesasApi";
+import {
+  downloadComprobantePdf,
+  saveComprobantePdfData,
+  type PdfComprobanteData,
+} from "@/shared/utils/comprobantePdf";
 import Button from "primevue/button";
 import Dialog from "primevue/dialog";
 import InputText from "primevue/inputtext";
@@ -183,9 +189,9 @@ async function cobrar() {
       "Metodo de pago",
     ),
     tipoComprobante.value === "F" && ruc(rucDni.value),
-    tipoComprobante.value === "F" && required(razonSocial.value, "Razon social"),
-    tipoComprobante.value === "F" && required(direccion.value, "Direccion"),
-    tipoComprobante.value === "B" && onlyDigits(rucDni.value).length > 0 && dni(rucDni.value),
+    tipoComprobante.value === "B" && dni(rucDni.value, "DNI"),
+    requiereDatos.value && required(razonSocial.value, "Razon social / Nombre"),
+    requiereDatos.value && required(direccion.value, "Direccion"),
     requiereDatos.value && maxLength(razonSocial.value, "Razon social / Nombre", 120),
     maxLength(direccion.value, "Direccion", 160),
     numberRange(descuento.value, "Descuento", 0, pedidoSeleccionado.value.totalConIgv),
@@ -205,8 +211,9 @@ async function cobrar() {
 
   procesando.value = true;
   try {
+    const pedidoActual = pedidoSeleccionado.value;
     const req = {
-      pedidoId: pedidoSeleccionado.value.pedidoId,
+      pedidoId: pedidoActual.pedidoId,
       tipoComprobanteId: tipoComprobante.value,
       metodoPago: metodoPago.value,
       datosComprobante: requiereDatos.value
@@ -222,10 +229,36 @@ async function cobrar() {
     };
     const res = await cajaApi.emitirComprobante(req);
     const comp = res.data.data;
+    const pdfData: PdfComprobanteData = {
+      comprobanteId: comp.id,
+      pedidoId: comp.pedidoId,
+      tipoComprobante: comp.tipoComprobanteNombre,
+      serie: comp.serie,
+      numero: comp.numero,
+      metodoPago: comp.metodoPago,
+      subtotal: comp.subtotal,
+      igv: comp.igv,
+      descuento: comp.descuento,
+      total: comp.total,
+      pagadoEn: comp.pagadoEn,
+      clienteDocumento: requiereDatos.value ? onlyDigits(rucDni.value) : "",
+      clienteNombre: requiereDatos.value ? cleanText(razonSocial.value) : "",
+      clienteDireccion: requiereDatos.value ? cleanText(direccion.value) : "",
+      items: pedidoActual.items.map((item) => ({
+        producto: item.productoNombre,
+        cantidad: item.cantidad,
+        precio: item.precio,
+        subtotal: item.subtotal,
+        observaciones: item.observaciones,
+      })),
+    };
+    saveComprobantePdfData(pdfData);
+    downloadComprobantePdf(pdfData);
+    await liberarMesaPagada(pedidoActual.mesa);
     toast.add({
       severity: "success",
       summary: "Cobrado",
-      detail: `${comp.tipoComprobanteNombre} ${comp.serie}-${String(comp.numero).padStart(8, "0")} - S/ ${Number(comp.total).toFixed(2)}`,
+      detail: `${comp.tipoComprobanteNombre} ${comp.serie}-${String(comp.numero).padStart(8, "0")} - S/ ${Number(comp.total).toFixed(2)}. PDF descargado`,
       life: 5000,
     });
     pedidoSeleccionado.value = null;
@@ -245,6 +278,22 @@ async function cobrar() {
 
 function fmt(v: number) {
   return `S/ ${Number(v).toFixed(2)}`;
+}
+
+async function liberarMesaPagada(mesaCodigo: string) {
+  try {
+    const res = await mesasApi.listar();
+    const mesa = res.data.data.find((item) => String(item.numero).trim() === String(mesaCodigo).trim());
+    if (!mesa?.sesionId) return;
+    await mesasApi.cerrarSesion(mesa.sesionId);
+  } catch {
+    toast.add({
+      severity: "warn",
+      summary: "Mesa no liberada",
+      detail: "El cobro se registro, pero no se pudo liberar la mesa automaticamente",
+      life: 3500,
+    });
+  }
 }
 
 function formatFecha(iso: string | null | undefined) {
@@ -606,7 +655,7 @@ onUnmounted(() => {
 
           <div v-if="requiereDatos" class="datos-extra">
             <div class="form-field">
-              <label>{{ tipoComprobante === "F" ? "RUC" : "DNI opcional" }}</label>
+              <label>{{ tipoComprobante === "F" ? "RUC" : "DNI" }}</label>
               <InputText
                 v-model="rucDni"
                 :placeholder="tipoComprobante === 'F' ? '20xxxxxxxxx' : '########'"

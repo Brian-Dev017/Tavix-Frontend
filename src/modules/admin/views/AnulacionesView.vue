@@ -1,26 +1,28 @@
 <script setup lang="ts">
-import { ref, onMounted } from "vue";
+import { ref, onMounted, onUnmounted } from "vue";
 import { useToast } from "primevue/usetoast";
 import Toast from "primevue/toast";
 import Button from "primevue/button";
 import InputText from "primevue/inputtext";
-import { adminApi } from "@/modules/admin/api/adminApi";
-import { required } from "@/shared/validation/inputValidation";
+import Dialog from "primevue/dialog";
+import { adminApi, type ComprobanteEmitidoAdmin } from "@/modules/admin/api/adminApi";
+import { authApi } from "@/modules/auth/api/authApi";
+import { useAuthStore, normalizeAuthRole } from "@/modules/auth/store/authStore";
+import { decodeJwtPayload } from "@/shared/auth/jwt";
+import { reportesApi } from "@/modules/admin/api/reportesApi";
+import { loadComprobantePdfData, openComprobantePdf } from "@/shared/utils/comprobantePdf";
+import { password, required, username } from "@/shared/validation/inputValidation";
 
 const toast = useToast();
-const items = ref<Array<{
-  id: number
-  pedidoId: number
-  tipoComprobante: string
-  serie: string
-  numero: number
-  metodoPago: string
-  total: number
-  estado: string
-  pagadoEn: string
-}>>([]);
+const auth = useAuthStore();
+const items = ref<ComprobanteEmitidoAdmin[]>([]);
 const loading = ref(false);
+const anulando = ref(false);
 const motivo = ref<Record<number, string>>({});
+const credDialog = ref(false);
+const selected = ref<ComprobanteEmitidoAdmin | null>(null);
+const credenciales = ref({ usuario: "", contrasena: "" });
+let refresco: ReturnType<typeof setInterval> | null = null;
 
 async function cargar() {
   loading.value = true;
@@ -33,19 +35,82 @@ async function cargar() {
   }
 }
 
-async function anular(id: number) {
-  const validationError = required(motivo.value[id], "Motivo");
+function solicitarAnulacion(item: ComprobanteEmitidoAdmin) {
+  selected.value = item;
+  credenciales.value = { usuario: "", contrasena: "" };
+  credDialog.value = true;
+}
+
+async function anular() {
+  if (!selected.value) return;
+  const validationError =
+    required(motivo.value[selected.value.id], "Motivo") ||
+    username(credenciales.value.usuario) ||
+    password(credenciales.value.contrasena, "Contrasena");
   if (validationError) {
-    toast.add({ severity: "warn", summary: "Validación requerida", detail: validationError, life: 3000 });
+    toast.add({ severity: "warn", summary: "Validacion requerida", detail: validationError, life: 3000 });
     return;
   }
+
+  anulando.value = true;
   try {
-    await adminApi.anularComprobante(id, motivo.value[id]);
+    const loginRes = await authApi.login({
+      usuario: credenciales.value.usuario.trim(),
+      contrasena: credenciales.value.contrasena,
+    });
+    const loginData = loginRes.data.data;
+    const rol = normalizeAuthRole(loginData.rol);
+    const userId = Number(decodeJwtPayload(loginData.accessToken)?.sub ?? NaN);
+    if (rol !== "AD" || auth.rol !== "AD" || userId !== auth.userId) {
+      throw new Error("Las credenciales no corresponden al administrador actual");
+    }
+
+    await adminApi.anularComprobante(selected.value.id, motivo.value[selected.value.id], {
+      usuario: credenciales.value.usuario.trim(),
+      contrasena: credenciales.value.contrasena,
+    });
+    credDialog.value = false;
     toast.add({ severity: "success", summary: "Comprobante anulado", life: 2500 });
     await cargar();
   } catch (e: unknown) {
-    const err = e as { response?: { data?: { message?: string } } };
-    toast.add({ severity: "error", summary: "Error al anular", detail: err.response?.data?.message, life: 3000 });
+    const err = e as { response?: { data?: { message?: string } }; message?: string };
+    toast.add({ severity: "error", summary: "Error al anular", detail: err.response?.data?.message ?? err.message, life: 3000 });
+  } finally {
+    anulando.value = false;
+  }
+}
+
+async function verPdf(item: ComprobanteEmitidoAdmin) {
+  const guardado = loadComprobantePdfData(item.id);
+  if (guardado) {
+    openComprobantePdf(guardado);
+    return;
+  }
+
+  try {
+    const detalle = (await reportesApi.getHistorialDetalle(item.id)).data.data;
+    openComprobantePdf({
+      comprobanteId: detalle.comprobanteId,
+      pedidoId: detalle.pedidoId,
+      tipoComprobante: detalle.tipoComprobante,
+      serie: detalle.serie,
+      numero: detalle.numero,
+      metodoPago: detalle.metodoPago,
+      subtotal: detalle.subtotal,
+      igv: detalle.igv,
+      descuento: detalle.descuento,
+      total: detalle.total,
+      pagadoEn: detalle.pagadoEn,
+      items: detalle.items.map((row) => ({
+        producto: row.producto,
+        cantidad: row.cantidad,
+        precio: row.precio,
+        subtotal: row.subtotal,
+        observaciones: row.observaciones,
+      })),
+    });
+  } catch {
+    toast.add({ severity: "error", summary: "PDF no disponible", detail: "No se pudo generar la vista previa del comprobante", life: 3000 });
   }
 }
 
@@ -53,7 +118,14 @@ function fmtSol(n: number) {
   return `S/ ${Number(n ?? 0).toFixed(2)}`;
 }
 
-onMounted(cargar);
+onMounted(() => {
+  cargar();
+  refresco = setInterval(cargar, 15000);
+});
+
+onUnmounted(() => {
+  if (refresco) clearInterval(refresco);
+});
 </script>
 
 <template>
@@ -62,7 +134,7 @@ onMounted(cargar);
     <div class="section-header">
       <div>
         <h1 class="section-title"><i class="pi pi-times-circle"></i> Anulaciones</h1>
-        <p class="section-sub">Boletas y facturas emitidas pendientes de validación</p>
+        <p class="section-sub">Boletas y facturas emitidas pendientes de validacion</p>
       </div>
       <Button label="Actualizar" icon="pi pi-refresh" size="small" :loading="loading" @click="cargar" />
     </div>
@@ -73,26 +145,50 @@ onMounted(cargar);
           <tr>
             <th>Comprobante</th>
             <th>Pedido</th>
-            <th>Método</th>
+            <th>Metodo</th>
             <th>Total</th>
+            <th>PDF</th>
             <th>Motivo validado</th>
-            <th>Acción</th>
+            <th>Accion</th>
           </tr>
         </thead>
         <tbody>
-          <tr v-if="loading"><td colspan="6" class="empty-cell">Cargando...</td></tr>
-          <tr v-else-if="items.length === 0"><td colspan="6" class="empty-cell">Sin boletas o facturas emitidas</td></tr>
+          <tr v-if="loading"><td colspan="7" class="empty-cell">Cargando...</td></tr>
+          <tr v-else-if="items.length === 0"><td colspan="7" class="empty-cell">Sin boletas o facturas emitidas</td></tr>
           <tr v-for="c in items" :key="c.id">
             <td>{{ c.tipoComprobante }} {{ c.serie }}-{{ String(c.numero).padStart(8, "0") }}</td>
             <td>P-{{ c.pedidoId }}</td>
             <td>{{ c.metodoPago }}</td>
             <td class="mono">{{ fmtSol(c.total) }}</td>
-            <td><InputText v-model="motivo[c.id]" placeholder="Motivo de anulación" fluid /></td>
-            <td><Button label="Anular" icon="pi pi-check" severity="danger" size="small" @click="anular(c.id)" /></td>
+            <td>
+              <Button icon="pi pi-file-pdf" text rounded size="small" @click="verPdf(c)" />
+            </td>
+            <td><InputText v-model="motivo[c.id]" placeholder="Motivo de anulacion" fluid /></td>
+            <td><Button label="Anular" icon="pi pi-check" severity="danger" size="small" @click="solicitarAnulacion(c)" /></td>
           </tr>
         </tbody>
       </table>
     </div>
+
+    <Dialog v-model:visible="credDialog" header="Confirmar anulacion" modal :style="{ width: '28rem', maxWidth: '95vw' }">
+      <div class="dialog-body">
+        <p class="dialog-copy">
+          Para anular el comprobante, valida las credenciales del administrador actual.
+        </p>
+        <div class="field-stack">
+          <label>Usuario administrador</label>
+          <InputText v-model="credenciales.usuario" placeholder="Tu usuario" fluid />
+        </div>
+        <div class="field-stack">
+          <label>Contrasena</label>
+          <InputText v-model="credenciales.contrasena" type="password" placeholder="Tu contrasena" fluid />
+        </div>
+      </div>
+      <template #footer>
+        <Button label="Cancelar" text :disabled="anulando" @click="credDialog = false" />
+        <Button label="Confirmar anulacion" severity="danger" icon="pi pi-lock" :loading="anulando" @click="anular" />
+      </template>
+    </Dialog>
   </div>
 </template>
 
@@ -108,4 +204,8 @@ onMounted(cargar);
 .data-table td { padding: 0.6rem 0.9rem; border-top: 1px solid $border-subtle; color: $text-primary; }
 .mono { font-family: $font-mono; font-weight: 700; }
 .empty-cell { text-align: center; color: $text-dim; padding: 2rem !important; }
+.dialog-body { display: flex; flex-direction: column; gap: 0.85rem; }
+.dialog-copy { margin: 0; color: $text-muted; font-size: 0.8rem; line-height: 1.45; }
+.field-stack { display: flex; flex-direction: column; gap: 0.35rem; }
+.field-stack label { color: $text-muted; font-size: 0.76rem; font-weight: 600; }
 </style>
