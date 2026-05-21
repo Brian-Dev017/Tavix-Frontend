@@ -226,6 +226,44 @@
   box-shadow: $shadow-xs;
 }
 
+.items-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  border-bottom: 1px solid $border-subtle;
+  padding-bottom: 0.75rem;
+  margin-bottom: 0.15rem;
+}
+
+.item-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.75rem;
+  align-items: start;
+  font-size: 0.78rem;
+}
+
+.item-name {
+  display: block;
+  color: $text-secondary;
+  font-weight: 650;
+}
+
+.item-note {
+  display: block;
+  margin-top: 0.18rem;
+  color: $text-dim;
+  font-size: 0.7rem;
+  line-height: 1.25;
+}
+
+.item-price {
+  font-family: $font-mono;
+  color: $text-muted;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
 .resumen-row {
   display: flex;
   justify-content: space-between;

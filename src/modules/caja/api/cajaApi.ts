@@ -9,6 +9,19 @@ export interface PedidoResumen {
   igv: number
   totalConIgv: number
   estadoPedido: string
+  items: PedidoItem[]
+}
+
+export interface PedidoItem {
+  detalleId: number
+  pedidoId: number
+  productoId: number
+  productoNombre: string
+  cantidad: number
+  precio: number
+  subtotal: number
+  estado: string
+  observaciones: string | null
 }
 
 export interface DatosComprobanteRequest {

@@ -154,8 +154,8 @@ async function cobrar() {
             direccion: cleanText(direccion.value),
           }
         : undefined,
-      descuento: Number(descuento.value || 0),
-      motivoDescuento: cleanText(motivoDescuento.value),
+      descuento: isAdmin.value ? Number(descuento.value || 0) : 0,
+      motivoDescuento: isAdmin.value ? cleanText(motivoDescuento.value) : "",
     };
     const res = await cajaApi.emitirComprobante(req);
     const comp = res.data.data;
@@ -310,6 +310,20 @@ onUnmounted(() => {
           </div>
 
           <div class="resumen-box">
+            <div class="items-list">
+              <div
+                v-for="item in pedidoSeleccionado.items"
+                :key="item.detalleId"
+                class="item-row"
+              >
+                <div>
+                  <span class="item-name">{{ item.cantidad }}x {{ item.productoNombre }}</span>
+                  <span v-if="item.observaciones" class="item-note">{{ item.observaciones }}</span>
+                </div>
+                <span class="item-price">{{ fmt(item.subtotal) }}</span>
+              </div>
+            </div>
+
             <div class="resumen-row">
               <span>Subtotal</span>
               <span class="val">{{ fmt(pedidoSeleccionado.subtotal) }}</span>
@@ -350,7 +364,7 @@ onUnmounted(() => {
             />
           </div>
 
-          <div class="form-field">
+          <div v-if="isAdmin" class="form-field">
             <label>Descuento</label>
             <InputNumber
               v-model="descuento"
@@ -362,7 +376,7 @@ onUnmounted(() => {
             />
           </div>
 
-          <div v-if="Number(descuento || 0) > 0" class="form-field">
+          <div v-if="isAdmin && Number(descuento || 0) > 0" class="form-field">
             <label>Motivo de descuento</label>
             <InputText v-model="motivoDescuento" placeholder="Autorizacion admin..." fluid />
           </div>
