@@ -469,22 +469,11 @@ async function registrarPrecierre() {
   }
 
   guardandoPrecierre.value = true;
-  validandoPrecierre.value = true;
   try {
-    const loginRes = await authApi.login({
-      usuario: cleanText(precierreForm.value.usuario),
-      contrasena: precierreForm.value.contrasena,
-    });
-    const loginData = loginRes.data.data;
-    const rolValidado = normalizeAuthRole(loginData.rol);
-    const userIdValidado = Number(decodeJwtPayload(loginData.accessToken)?.sub ?? NaN);
-
-    if (!rolValidado || rolValidado !== auth.rol || userIdValidado !== auth.userId) {
-      throw new Error("Las credenciales no pertenecen al cajero actual");
-    }
-
     const res = await reportesApi.registrarPrecierre(
       arqueoActivo.value.id,
+      cleanText(precierreForm.value.usuario),
+      precierreForm.value.contrasena,
       Number(precierreForm.value.montoEfectivo || 0),
       cleanText(precierreForm.value.notas) || undefined,
     );
@@ -505,7 +494,6 @@ async function registrarPrecierre() {
       life: 3500,
     });
   } finally {
-    validandoPrecierre.value = false;
     guardandoPrecierre.value = false;
   }
 }
@@ -989,7 +977,7 @@ onUnmounted(() => {
         <Button
           label="Guardar pre-cierre"
           icon="pi pi-check"
-          :loading="guardandoPrecierre || validandoPrecierre"
+          :loading="guardandoPrecierre"
           @click="registrarPrecierre"
         />
       </template>

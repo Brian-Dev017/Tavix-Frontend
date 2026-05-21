@@ -109,8 +109,8 @@ export const reportesApi = {
   getActivo:      () => api.get<{ data: Arqueo }>('/api/caja/arqueos/activo'),
   abrirArqueo:    (_cajeroId: number, montoApertura: number, notas?: string) =>
     api.post<{ data: Arqueo }>('/api/caja/arqueos/abrir', { montoApertura, notas }),
-  registrarPrecierre: (id: number, montoEfectivo: number, notas?: string) =>
-    api.post<{ data: Arqueo }>(`/api/caja/arqueos/${id}/precierre`, { montoEfectivo, notas }),
+  registrarPrecierre: (id: number, usuario: string, contrasena: string, montoEfectivo: number, notas?: string) =>
+    api.post<{ data: Arqueo }>(`/api/caja/arqueos/${id}/precierre`, { usuario, contrasena, montoEfectivo, notas }),
   cerrarArqueo:   (id: number, montoCierre: number, notas?: string) =>
     api.post<{ data: Arqueo }>(`/api/caja/arqueos/${id}/cerrar`, { montoCierre, notas }),
   getArqueoReporte: (id: number) =>
