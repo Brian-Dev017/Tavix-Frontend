@@ -62,6 +62,4 @@ export const cajaApi = {
   getPedidosActivos: () => api.get<{ data: PedidoResumen[] }>('/api/caja/pedidos'),
   emitirComprobante: (req: EmitirComprobanteRequest) =>
     api.post<{ data: ComprobanteResponse }>('/api/caja/comprobante', req),
-  descargarEscPos: (id: number) =>
-    api.get(`/api/caja/comprobante/${id}/escpos`, { responseType: 'blob' }),
 }

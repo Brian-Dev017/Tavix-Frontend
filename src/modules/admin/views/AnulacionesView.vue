@@ -10,7 +10,7 @@ import { authApi } from "@/modules/auth/api/authApi";
 import { useAuthStore, normalizeAuthRole } from "@/modules/auth/store/authStore";
 import { decodeJwtPayload } from "@/shared/auth/jwt";
 import { reportesApi } from "@/modules/admin/api/reportesApi";
-import { loadComprobantePdfData, openComprobantePdf } from "@/shared/utils/comprobantePdf";
+import { loadComprobantePdfData, openComprobantePdf, saveComprobantePdfData } from "@/shared/utils/comprobantePdf";
 import { onlyDigits, password, required, username } from "@/shared/validation/inputValidation";
 
 const toast = useToast();
@@ -97,7 +97,7 @@ async function verPdf(item: ComprobanteEmitidoAdmin) {
 
   try {
     const detalle = (await reportesApi.getHistorialDetalle(item.id)).data.data;
-    openComprobantePdf({
+    const pdfData = {
       comprobanteId: detalle.comprobanteId,
       pedidoId: detalle.pedidoId,
       tipoComprobante: detalle.tipoComprobante,
@@ -116,7 +116,9 @@ async function verPdf(item: ComprobanteEmitidoAdmin) {
         subtotal: row.subtotal,
         observaciones: row.observaciones,
       })),
-    });
+    };
+    saveComprobantePdfData(pdfData);
+    openComprobantePdf(pdfData);
   } catch {
     toast.add({ severity: "error", summary: "PDF no disponible", detail: "No se pudo generar la vista previa del comprobante", life: 3000 });
   }

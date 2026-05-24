@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from "vue";
+import { ref, computed, onMounted, onUnmounted } from "vue";
 import { useRouter } from "vue-router";
 import { useToast } from "primevue/usetoast";
 import { mesasApi, type MesaDTO } from "@/modules/mesas/api/mesasApi";
@@ -16,6 +16,8 @@ const auth = useAuthStore();
 const mesas = ref<MesaDTO[]>([]);
 const loading = ref(true);
 const refreshing = ref(false);
+const MESA_LIBERADA_EVENT = "mesa-liberada";
+let refrescoMesas: ReturnType<typeof setInterval> | null = null;
 
 const disponibles = computed(
   () => mesas.value.filter((m) => m.estado === "DISPONIBLE").length,
@@ -85,7 +87,28 @@ async function handleLogout() {
   router.push("/login");
 }
 
-onMounted(() => cargarMesas());
+function handleMesaLiberada() {
+  cargarMesas(true);
+}
+
+function handleVisibilityChange() {
+  if (document.visibilityState === "visible") {
+    cargarMesas(true);
+  }
+}
+
+onMounted(() => {
+  cargarMesas();
+  refrescoMesas = setInterval(() => cargarMesas(true), 10000);
+  window.addEventListener(MESA_LIBERADA_EVENT, handleMesaLiberada);
+  document.addEventListener("visibilitychange", handleVisibilityChange);
+});
+
+onUnmounted(() => {
+  if (refrescoMesas) clearInterval(refrescoMesas);
+  window.removeEventListener(MESA_LIBERADA_EVENT, handleMesaLiberada);
+  document.removeEventListener("visibilitychange", handleVisibilityChange);
+});
 </script>
 
 <template>

@@ -51,6 +51,7 @@ const guardandoPrecierre = ref(false);
 const validandoPrecierre = ref(false);
 const arqueoActivo = ref<Arqueo | null>(null);
 const negocio = ref<NegocioConfig | null>(null);
+const MESA_LIBERADA_EVENT = "mesa-liberada";
 
 const pedidoSeleccionado = ref<PedidoResumen | null>(null);
 const tipoComprobante = ref("T");
@@ -332,12 +333,32 @@ async function cobrar() {
         observaciones: item.observaciones,
       })),
     };
-    saveComprobantePdfData(pdfData);
-    downloadComprobantePdf(pdfData);
+    let pdfDescargado = false;
+    try {
+      saveComprobantePdfData(pdfData);
+      downloadComprobantePdf(pdfData);
+      pdfDescargado = true;
+    } catch (pdfError) {
+      console.error("[caja] error al generar/descargar pdf:", pdfError);
+      toast.add({
+        severity: "warn",
+        summary: "Cobro registrado",
+        detail: "El comprobante se emitio, pero no se pudo descargar el PDF automaticamente",
+        life: 5000,
+      });
+    }
+    window.dispatchEvent(
+      new CustomEvent(MESA_LIBERADA_EVENT, {
+        detail: {
+          pedidoId: pedidoActual.pedidoId,
+          mesa: pedidoActual.mesa,
+        },
+      }),
+    );
     toast.add({
       severity: "success",
       summary: "Cobrado",
-      detail: `${comp.tipoComprobanteNombre} ${comp.serie}-${String(comp.numero).padStart(8, "0")} - S/ ${Number(comp.total).toFixed(2)}. PDF descargado`,
+      detail: `${comp.tipoComprobanteNombre} ${comp.serie}-${String(comp.numero).padStart(8, "0")} - S/ ${Number(comp.total).toFixed(2)}.${pdfDescargado ? " PDF descargado" : " PDF pendiente"} y mesa liberada`,
       life: 5000,
     });
     pedidoSeleccionado.value = null;

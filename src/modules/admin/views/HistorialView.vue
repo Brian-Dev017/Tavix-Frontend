@@ -10,7 +10,7 @@ import {
   type ComprobanteHistorial,
   type HistorialDetalle,
 } from "@/modules/admin/api/reportesApi";
-import { loadComprobantePdfData, openComprobantePdf } from "@/shared/utils/comprobantePdf";
+import { loadComprobantePdfData, openComprobantePdf, saveComprobantePdfData } from "@/shared/utils/comprobantePdf";
 import { oneOf } from "@/shared/validation/inputValidation";
 
 const toast = useToast();
@@ -110,7 +110,7 @@ async function verPdf(id: number) {
   }
   try {
     const data = (await reportesApi.getHistorialDetalle(id)).data.data;
-    openComprobantePdf({
+    const pdfData = {
       comprobanteId: data.comprobanteId,
       pedidoId: data.pedidoId,
       tipoComprobante: data.tipoComprobante,
@@ -129,7 +129,9 @@ async function verPdf(id: number) {
         subtotal: item.subtotal,
         observaciones: item.observaciones,
       })),
-    });
+    };
+    saveComprobantePdfData(pdfData);
+    openComprobantePdf(pdfData);
   } catch {
     toast.add({ severity: "error", summary: "PDF no disponible", life: 3000 });
   }
