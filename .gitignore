@@ -12,6 +12,9 @@ dist
 dist-ssr
 *.local
 
+# Documentacion local generada
+docs/
+
 # Variables de entorno (contienen credenciales)
 .env
 .env.development
