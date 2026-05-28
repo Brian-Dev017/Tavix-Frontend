@@ -50,7 +50,7 @@ const navSections = [
       { label: "Caja", path: "caja", icon: "pi-calculator" },
       { label: "Pagos", path: "pagos", icon: "pi-credit-card" },
       { label: "Anulaciones", path: "anulaciones", icon: "pi-times-circle" },
-      { label: "IGV & Series", path: "igv-series", icon: "pi-percentage" },
+      { label: "Series", path: "igv-series", icon: "pi-file-edit" },
     ],
   },
   {

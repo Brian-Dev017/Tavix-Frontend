@@ -109,7 +109,7 @@ function buildLines(data: PdfComprobanteData): string[] {
 
   lines.push("");
   lines.push(`Subtotal: ${fmtMoney(data.subtotal)}`);
-  lines.push(`IGV: ${fmtMoney(data.igv)}`);
+  lines.push(`IGV 18%: ${fmtMoney(data.igv)}`);
   if (Number(data.descuento ?? 0) > 0) lines.push(`Descuento: ${fmtMoney(data.descuento ?? 0)}`);
   lines.push(`Total: ${fmtMoney(data.total)}`);
   return lines;

@@ -103,6 +103,8 @@ const totalFinal = computed(() => {
   return Math.max(0, Number(pedidoSeleccionado.value.totalConIgv) - Number(descuento.value || 0));
 });
 
+const igvInformativo = computed(() => Number((totalFinal.value * 0.18).toFixed(2)));
+
 function roundCashDown(value: number) {
   return Math.floor(value * 10) / 10;
 }
@@ -743,8 +745,8 @@ onUnmounted(() => {
               <span class="val">{{ fmt(pedidoSeleccionado.subtotal) }}</span>
             </div>
             <div class="resumen-row">
-              <span>IGV (18%)</span>
-              <span class="val">{{ fmt(pedidoSeleccionado.igv) }}</span>
+              <span>IGV informativo (18%)</span>
+              <span class="val">{{ fmt(igvInformativo) }}</span>
             </div>
             <div class="resumen-row">
               <span>Descuento</span>

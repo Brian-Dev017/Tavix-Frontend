@@ -3,7 +3,6 @@ import { ref, onMounted } from "vue";
 import { useToast } from "primevue/usetoast";
 import Toast from "primevue/toast";
 import InputText from "primevue/inputtext";
-import InputNumber from "primevue/inputnumber";
 import Button from "primevue/button";
 import {
   configuracionApi,
@@ -15,7 +14,6 @@ import {
   httpUrl,
   maxLength,
   nameText,
-  numberRange,
   onlyDigits,
   ruc,
 } from "@/shared/validation/inputValidation";
@@ -55,7 +53,6 @@ async function guardar() {
     nameText(form.value.nombreComercial, "Nombre comercial"),
     maxLength(form.value.direccion, "Dirección", 160),
     httpUrl(form.value.logoUrl, "URL del logo"),
-    numberRange(form.value.igvPorcentaje, "IGV", 0, 100),
   ]);
   if (validationError) {
     toast.add({
@@ -73,7 +70,6 @@ async function guardar() {
       nombreComercial: cleanText(form.value.nombreComercial),
       direccion: cleanText(form.value.direccion),
       logoUrl: cleanText(form.value.logoUrl),
-      igvPorcentaje: Number(form.value.igvPorcentaje),
     });
     toast.add({
       severity: "success",
@@ -152,20 +148,6 @@ onMounted(cargar);
           >
         </div>
 
-        <!-- IGV -->
-        <div class="field-group">
-          <label class="field-lbl">IGV (%)</label>
-          <InputNumber
-            v-model="form.igvPorcentaje"
-            :min="0"
-            :max="100"
-            suffix="%"
-            fluid
-          />
-          <span class="field-hint"
-            >Impuesto General a las Ventas — normalmente 18%</span
-          >
-        </div>
       </div>
 
       <!-- Preview card -->
@@ -187,7 +169,6 @@ onMounted(cargar);
             <div class="preview-line" v-if="form.direccion">
               {{ form.direccion }}
             </div>
-            <div class="preview-line">IGV: {{ form.igvPorcentaje }}%</div>
           </div>
         </div>
       </div>

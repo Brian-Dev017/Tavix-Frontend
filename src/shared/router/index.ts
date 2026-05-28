@@ -52,7 +52,7 @@ const router = createRouter({
         { path: 'caja', name: 'admin-caja', component: () => import('@/modules/admin/views/ArqueoView.vue'), meta: { title: 'Caja' } },
         { path: 'pagos', name: 'admin-pagos', component: () => import('@/modules/admin/views/PagosView.vue'), meta: { title: 'Pagos' } },
         { path: 'anulaciones', name: 'admin-anulaciones', component: () => import('@/modules/admin/views/AnulacionesView.vue'), meta: { title: 'Anulaciones' } },
-        { path: 'igv-series', name: 'admin-igv', component: () => import('@/modules/admin/views/IgvSeriesView.vue'), meta: { title: 'IGV & Series' } },
+        { path: 'igv-series', name: 'admin-series', component: () => import('@/modules/admin/views/IgvSeriesView.vue'), meta: { title: 'Series' } },
         // Suministros
         { path: 'stock', name: 'admin-stock', component: () => import('@/modules/admin/views/StockView.vue'), meta: { title: 'Stock' } },
         { path: 'proveedores', name: 'admin-proveedores', component: () => import('@/modules/admin/views/ProveedoresView.vue'), meta: { title: 'Proveedores' } },

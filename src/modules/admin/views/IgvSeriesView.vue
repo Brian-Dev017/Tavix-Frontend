@@ -13,7 +13,6 @@ import Button from "primevue/button";
 import {
   configuracionApi,
   type SerieComprobante,
-  type NegocioConfig,
 } from "@/modules/admin/api/configuracionApi";
 import {
   cleanText,
@@ -27,7 +26,6 @@ const toast = useToast();
 const confirm = useConfirm();
 
 const series = ref<SerieComprobante[]>([]);
-const negocio = ref<NegocioConfig | null>(null);
 const loading = ref(false);
 const saving = ref(false);
 const dialog = ref(false);
@@ -39,9 +37,6 @@ const TIPOS = [
   { label: "Factura (F)", value: "F" },
   { label: "Ticket (T)", value: "T" },
 ];
-
-const igvEdit = ref(false);
-const igvVal = ref(18);
 
 const form = ref<{
   tipo: "B" | "F" | "T";
@@ -58,13 +53,8 @@ const form = ref<{
 async function cargar() {
   loading.value = true;
   try {
-    const [resSeries, resNeg] = await Promise.all([
-      configuracionApi.listarSeries(),
-      configuracionApi.getNegocio(),
-    ]);
+    const resSeries = await configuracionApi.listarSeries();
     series.value = resSeries.data.data;
-    negocio.value = resNeg.data.data;
-    igvVal.value = resNeg.data.data.igvPorcentaje ?? 18;
   } catch {
     toast.add({ severity: "error", summary: "Error al cargar", life: 3000 });
   } finally {
@@ -169,34 +159,6 @@ function confirmarEliminar(s: SerieComprobante) {
   });
 }
 
-async function guardarIgv() {
-  const validationError = numberRange(igvVal.value, "IGV", 0, 100);
-  if (validationError) {
-    toast.add({
-      severity: "warn",
-      summary: "Revisa el IGV",
-      detail: validationError,
-      life: 3000,
-    });
-    return;
-  }
-  saving.value = true;
-  try {
-    await configuracionApi.updateNegocio({ igvPorcentaje: igvVal.value });
-    toast.add({ severity: "success", summary: "IGV actualizado", life: 2500 });
-    igvEdit.value = false;
-    await cargar();
-  } catch {
-    toast.add({
-      severity: "error",
-      summary: "Error al guardar IGV",
-      life: 3000,
-    });
-  } finally {
-    saving.value = false;
-  }
-}
-
 function tipoLabel(t: string) {
   return t === "B" ? "Boleta" : t === "F" ? "Factura" : "Ticket";
 }
@@ -208,50 +170,6 @@ onMounted(cargar);
   <div class="section-page">
     <Toast />
     <ConfirmDialog />
-
-    <!-- IGV Card -->
-    <div class="igv-card">
-      <div class="igv-left">
-        <i class="pi pi-percentage igv-icon"></i>
-        <div>
-          <div class="igv-label">IGV Configurado</div>
-          <div class="igv-val">{{ negocio?.igvPorcentaje ?? 18 }}%</div>
-        </div>
-      </div>
-      <div class="igv-right" v-if="!igvEdit">
-        <Button
-          label="Editar IGV"
-          icon="pi pi-pencil"
-          size="small"
-          outlined
-          @click="igvEdit = true"
-        />
-      </div>
-      <div class="igv-right" v-else>
-        <InputNumber
-          v-model="igvVal"
-          :min="0"
-          :max="100"
-          suffix="%"
-          size="small"
-          style="width: 90px"
-        />
-        <Button
-          label="Guardar"
-          icon="pi pi-check"
-          size="small"
-          :loading="saving"
-          @click="guardarIgv"
-        />
-        <Button
-          label="Cancelar"
-          severity="secondary"
-          outlined
-          size="small"
-          @click="igvEdit = false"
-        />
-      </div>
-    </div>
 
     <!-- Series header -->
     <div class="section-header">
@@ -362,56 +280,6 @@ onMounted(cargar);
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
-}
-
-.igv-card {
-  background: $bg-card;
-  border: 1px solid $border-subtle;
-  border-radius: $r-md;
-  padding: 1rem 1.25rem;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-}
-
-.igv-left {
-  display: flex;
-  align-items: center;
-  gap: 0.85rem;
-}
-
-.igv-icon {
-  width: 42px;
-  height: 42px;
-  background: $violet-bg-sm;
-  border: 1px solid rgba(124, 58, 237, 0.2);
-  border-radius: $r-md;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1rem;
-  color: $violet;
-}
-
-.igv-label {
-  font-size: 0.72rem;
-  color: $text-muted;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-.igv-val {
-  font-family: $font-mono;
-  font-size: 1.5rem;
-  font-weight: 700;
-  color: $violet;
-}
-
-.igv-right {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
 }
 
 .section-header {
