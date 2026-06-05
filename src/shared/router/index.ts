@@ -23,6 +23,12 @@ const router = createRouter({
       meta: { requiresAuth: true, roles: ['AD', 'ME'], title: 'Tomar pedido' }
     },
     {
+      path: '/pedido-para-llevar',
+      name: 'pedido-para-llevar',
+      component: () => import('@/modules/pedidos/views/PedidoView.vue'),
+      meta: { requiresAuth: true, roles: ['AD', 'CA'], title: 'Pedido para llevar' }
+    },
+    {
       path: '/cocina',
       name: 'cocina',
       component: () => import('@/modules/cocina/views/CocinaView.vue'),

@@ -232,6 +232,10 @@ function seleccionarPedido(p: PedidoResumen) {
   efectivoRecibido.value = roundCashDown(Number(p.totalConIgv || 0));
 }
 
+function esPedidoParaLlevar(p: PedidoResumen | null) {
+  return String(p?.mesa ?? "").toLowerCase().includes("llevar");
+}
+
 function cancelarSeleccion() {
   pedidoSeleccionado.value = null;
 }
@@ -246,7 +250,7 @@ async function cobrar() {
   const validationError = firstError([
     !cajaActivaDelUsuario.value &&
       "Debes aperturar tu caja antes de cobrar",
-    pedidoSeleccionado.value.estadoPedido !== "LISTO" &&
+    !esPedidoParaLlevar(pedidoSeleccionado.value) && pedidoSeleccionado.value.estadoPedido !== "LISTO" &&
       "Solo se puede cobrar un pedido LISTO",
     oneOf(
       tipoComprobante.value,
@@ -608,7 +612,17 @@ onUnmounted(() => {
       <div class="pedidos-col">
         <div class="col-header-bar">
           <span class="col-title">Pedidos activos</span>
-          <span class="col-badge">{{ pedidos.length }}</span>
+          <div class="col-header-actions">
+            <Button
+              label="Para llevar"
+              icon="pi pi-shopping-bag"
+              size="small"
+              severity="success"
+              :disabled="!cajaActivaDelUsuario"
+              @click="router.push('/pedido-para-llevar')"
+            />
+            <span class="col-badge">{{ pedidos.length }}</span>
+          </div>
         </div>
 
         <div class="caja-status-card">
@@ -869,7 +883,7 @@ onUnmounted(() => {
               :label="`Cobrar ${fmt(totalCobro)}`"
               icon="pi pi-receipt"
               severity="success"
-              :disabled="pedidoSeleccionado.estadoPedido !== 'LISTO' || !cajaActivaDelUsuario"
+              :disabled="(!esPedidoParaLlevar(pedidoSeleccionado) && pedidoSeleccionado.estadoPedido !== 'LISTO') || !cajaActivaDelUsuario"
               :loading="procesando"
               @click="cobrar"
             />

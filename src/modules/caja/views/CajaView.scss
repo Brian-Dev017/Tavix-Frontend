@@ -111,6 +111,12 @@
   background: linear-gradient(180deg, rgba(200, 81, 122, 0.025) 0%, transparent 100%);
 }
 
+.col-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+}
+
 .col-title {
   font-size: 0.68rem;
   font-weight: 700;

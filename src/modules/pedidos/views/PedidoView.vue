@@ -14,6 +14,7 @@ import Button from "primevue/button";
 import Dialog from "primevue/dialog";
 import InputText from "primevue/inputtext";
 import InputNumber from "primevue/inputnumber";
+import Select from "primevue/select";
 import Badge from "primevue/badge";
 import { cleanText, maxLength, numberRange } from "@/shared/validation/inputValidation";
 
@@ -32,8 +33,13 @@ const router = useRouter();
 const toast = useToast();
 const { rolMeta, isAdmin, nombreCompleto } = useRol();
 
-const sesionId = Number(route.params.sesionId);
-const mesaNum = (route.query.mesa as string) ?? `#${sesionId}`;
+const esParaLlevar = computed(() => route.name === "pedido-para-llevar");
+const sesionId = computed(() => Number(route.params.sesionId));
+const mesaNum = computed(() => (route.query.mesa as string) ?? `#${sesionId.value}`);
+const tituloPedido = computed(() => esParaLlevar.value ? "Pedido para llevar" : `Mesa ${mesaNum.value}`);
+const subtituloPedido = computed(() => esParaLlevar.value ? "Atencion de caja" : `Sesion #${sesionId.value}`);
+const rutaRetorno = computed(() => esParaLlevar.value ? "/caja" : "/mesas");
+const etiquetaRetorno = computed(() => esParaLlevar.value ? "Volver a caja" : "Volver a mesas");
 
 const pedidoId = ref<number | null>(null);
 const menu = ref<CategoriaConProductosDTO[]>([]);
@@ -85,11 +91,10 @@ onMounted(async () => {
   try {
     const [menuRes, pedidoRes] = await Promise.all([
       menuApi.getMenu(),
-      pedidosApi.crear(sesionId),
+      esParaLlevar.value ? pedidosApi.crearParaLlevar() : pedidosApi.crear(sesionId.value),
     ]);
     menu.value = menuRes.data.data;
     pedidoId.value = pedidoRes.data.data.id;
-    if (menu.value.length) categoriaActiva.value = menu.value[0].id;
     const itemsRes = await pedidosApi.getItems(pedidoId.value);
     items.value = itemsRes.data.data;
   } catch (e: unknown) {
@@ -100,7 +105,7 @@ onMounted(async () => {
       detail: err.response?.data?.message ?? "Error cargando pedido",
       life: 3000,
     });
-    router.push("/mesas");
+    router.push(rutaRetorno.value);
   } finally {
     loading.value = false;
   }
@@ -117,6 +122,12 @@ function seleccionarProducto(producto: ProductoDTO) {
     return;
   }
   productoPendiente.value = producto;
+  cantidad.value = 1;
+}
+
+function seleccionarCategoria(categoriaId: number) {
+  categoriaActiva.value = categoriaId;
+  productoPendiente.value = null;
   cantidad.value = 1;
 }
 
@@ -192,7 +203,9 @@ async function confirmarPedido() {
     toast.add({
       severity: "success",
       summary: "Pedido confirmado",
-      detail: `${enviados.length} item${enviados.length !== 1 ? "s" : ""} enviado${enviados.length !== 1 ? "s" : ""} a cocina`,
+      detail: esParaLlevar.value
+        ? `${enviados.length} item${enviados.length !== 1 ? "s" : ""} listo${enviados.length !== 1 ? "s" : ""} para cobrar en caja`
+        : `${enviados.length} item${enviados.length !== 1 ? "s" : ""} enviado${enviados.length !== 1 ? "s" : ""} a cocina`,
       life: 2500,
     });
   } catch (e: unknown) {
@@ -213,9 +226,9 @@ async function volverAMesas() {
     const ok = window.confirm("Hay items pendientes sin confirmar. Si sales, se descartaran. Deseas continuar?");
     if (!ok) return;
   }
-  if (items.value.length === 0) {
+  if (!esParaLlevar.value && items.value.length === 0) {
     try {
-      await mesasApi.cerrarSesion(sesionId);
+      await mesasApi.cerrarSesion(sesionId.value);
     } catch (e: unknown) {
       const err = e as { response?: { data?: { message?: string } } };
       toast.add({
@@ -226,7 +239,7 @@ async function volverAMesas() {
       });
     }
   }
-  router.push("/mesas");
+  router.push(rutaRetorno.value);
 }
 
 function mergeObservaciones(actual: string, incoming: string) {
@@ -245,13 +258,13 @@ function mergeObservaciones(actual: string, incoming: string) {
         <button
           class="icon-back"
           @click="volverAMesas"
-          title="Volver a mesas"
+          :title="etiquetaRetorno"
         >
           <i class="pi pi-arrow-left"></i>
         </button>
         <div class="header-info">
-          <span class="header-title">Mesa {{ mesaNum }}</span>
-          <span class="header-sub">Sesion #{{ sesionId }}</span>
+          <span class="header-title">{{ tituloPedido }}</span>
+          <span class="header-sub">{{ subtituloPedido }}</span>
         </div>
       </div>
       <div class="pedido-header-right">
@@ -284,25 +297,17 @@ function mergeObservaciones(actual: string, incoming: string) {
           <span>Menu</span>
         </div>
 
-        <div class="categorias">
-          <button
-            v-for="cat in menu"
-            :key="cat.id"
-            class="categoria-btn"
-            :class="{ active: categoriaActiva === cat.id }"
-            @click="categoriaActiva = cat.id"
-          >
-            {{ cat.nombre }}
-          </button>
-        </div>
-
         <div class="obs-field">
           <label>Producto</label>
-          <InputText
-            :model-value="productoPendiente?.nombre ?? 'Selecciona un producto'"
-            readonly
+          <Select
+            :model-value="categoriaActiva"
+            :options="menu"
+            optionLabel="nombre"
+            optionValue="id"
+            placeholder="Selecciona una categoria"
             fluid
             size="small"
+            @update:modelValue="seleccionarCategoria"
           />
         </div>
 
@@ -328,7 +333,13 @@ function mergeObservaciones(actual: string, incoming: string) {
           />
         </div>
 
-        <div class="productos-grid">
+        <div v-if="!categoriaActiva" class="productos-empty">
+          <i class="pi pi-tags"></i>
+          <p>Selecciona una categoria</p>
+          <span>Luego se mostraran sus productos disponibles.</span>
+        </div>
+
+        <div v-else class="productos-grid">
           <div
             v-for="prod in productosActivos"
             :key="prod.id"
@@ -428,7 +439,7 @@ function mergeObservaciones(actual: string, incoming: string) {
             @click="abrirConfirmacionPedido"
           />
           <Button
-            label="Volver a mesas"
+            :label="etiquetaRetorno"
             icon="pi pi-arrow-left"
             severity="secondary"
             outlined
