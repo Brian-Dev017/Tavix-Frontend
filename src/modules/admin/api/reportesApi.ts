@@ -66,7 +66,16 @@ export interface HistorialDetalle {
   igv: number
   descuento: number
   total: number
+  efectivoRecibido: number | null
+  vuelto: number | null
   pagadoEn: string | null
+  clienteDocumento: string | null
+  clienteNombre: string | null
+  clienteDireccion: string | null
+  negocioNombre: string | null
+  negocioRuc: string | null
+  negocioDireccion: string | null
+  negocioLogoUrl: string | null
   items: HistorialDetalleItem[]
 }
 

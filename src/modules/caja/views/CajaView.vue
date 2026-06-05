@@ -319,6 +319,8 @@ async function cobrar() {
       igv: comp.igv,
       descuento: comp.descuento,
       total: comp.total,
+      efectivoRecibido: comp.efectivoRecibido,
+      vuelto: comp.vuelto,
       pagadoEn: comp.pagadoEn,
       clienteDocumento: requiereDatos.value ? onlyDigits(rucDni.value) : "",
       clienteNombre: requiereDatos.value
