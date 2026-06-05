@@ -95,6 +95,12 @@
 .menu-panel {
   background: $bg-card;
   border-right: 1px solid $border-subtle;
+
+  :deep(> .p-button) {
+    border-radius: 0;
+    min-height: 46px;
+    flex-shrink: 0;
+  }
 }
 
 // ── Panel header ──────────────────────────────────────
@@ -442,6 +448,16 @@
   box-shadow: 0 -4px 16px rgba(0,0,0,0.3);
 }
 
+.mobile-pedido-trigger {
+  display: none;
+}
+
+.mobile-pedido-sheet {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
 .footer-row {
   display: flex;
   justify-content: space-between;
@@ -518,18 +534,298 @@
 // ── Responsive ────────────────────────────────────────
 @media (max-width: #{$bp-desktop}) {
   .pedido-page {
-    grid-template-columns: 1fr;
-    grid-template-rows: 1fr 1fr;
     height: auto;
-    min-height: 100dvh;
+    min-height: 100svh;
   }
 
-  .menu-panel { border-right: none; border-bottom: 1px solid $border-subtle; }
-  .pedido-panel { min-height: 50dvh; }
+  .pedido-layout {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto;
+    overflow: visible;
+  }
+
+  .menu-panel,
+  .pedido-panel {
+    overflow: visible;
+  }
+
+  .menu-panel {
+    border-right: none;
+    border-bottom: 1px solid $border-subtle;
+  }
+
+  .pedido-panel {
+    min-height: 46svh;
+  }
 }
 
 @media (max-width: #{$bp-mobile}) {
-  .productos-grid { grid-template-columns: 1fr 1fr; }
+  .pedido-page {
+    padding-bottom: calc(74px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .pedido-header {
+    min-height: 56px;
+    height: auto;
+    padding: 0.7rem 0.85rem;
+    align-items: flex-start;
+    gap: 0.65rem;
+  }
+
+  .pedido-header-left {
+    min-width: 0;
+    flex: 1;
+  }
+
+  .pedido-header-right {
+    flex-shrink: 0;
+  }
+
+  .header-info {
+    min-width: 0;
+  }
+
+  .header-title,
+  .header-sub {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 48vw;
+  }
+
+  .rol-chip {
+    max-width: 8.6rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    padding-inline: 0.55rem;
+  }
+
+  .icon-back,
+  .item-remove {
+    width: 40px;
+    height: 40px;
+  }
+
+  .panel-header {
+    height: 44px;
+    padding-inline: 0.9rem;
+  }
+
+  .pedido-panel {
+    display: none;
+  }
+
+  .menu-panel {
+    min-height: calc(100svh - 56px - 74px);
+  }
+
+  .obs-field {
+    padding: 0.62rem 0.85rem;
+
+    :deep(.p-inputtext),
+    :deep(.p-select) {
+      min-height: 42px !important;
+      height: 42px !important;
+      font-size: 0.9rem !important;
+    }
+
+    :deep(.p-select-label) {
+      padding-block: 0.66rem !important;
+      font-size: 0.9rem !important;
+    }
+  }
+
+  .productos-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.65rem;
+    padding: 0.85rem;
+    max-height: 42svh;
+    overflow-y: auto;
+  }
+
+  .producto-item {
+    min-height: 78px;
+    padding: 0.82rem;
+    border-radius: $r-sm;
+
+    &:hover {
+      transform: none;
+      box-shadow: none;
+    }
+
+    &:active {
+      transform: scale(0.98);
+    }
+  }
+
+  .prod-nombre {
+    font-size: 0.86rem;
+  }
+
+  .prod-precio {
+    font-size: 0.88rem;
+  }
+
+  .productos-empty {
+    min-height: 28svh;
+    padding: 1.5rem 1rem;
+  }
+
+  .items-list {
+    padding: 0.85rem;
+    gap: 0.75rem;
+  }
+
+  .item-row,
+  .item-row.pending {
+    grid-template-columns: minmax(0, 1fr) auto;
+    padding: 0.82rem;
+    gap: 0.55rem;
+  }
+
+  .item-row.pending {
+    .item-remove {
+      grid-column: 2;
+      grid-row: 2;
+      justify-self: end;
+    }
+  }
+
+  .item-info {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  .item-nombre {
+    white-space: normal;
+    line-height: 1.3;
+  }
+
+  .pedido-footer {
+    padding: 0.85rem;
+    gap: 0.65rem;
+  }
+
+  .total-amount {
+    font-size: 1.32rem;
+  }
+
+  :deep(.p-button) {
+    min-height: 42px;
+    justify-content: center;
+  }
+
+  .mobile-pedido-trigger {
+    position: fixed;
+    left: 0.85rem;
+    right: 0.85rem;
+    bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
+    z-index: 40;
+    min-height: 54px;
+    border: 1px solid rgba(22, 163, 74, 0.24);
+    border-radius: $r-md;
+    background: $c-green;
+    color: #fff;
+    box-shadow: 0 12px 30px rgba(22, 163, 74, 0.28), $shadow-md;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.7rem;
+    padding: 0.75rem 0.9rem;
+    font-family: $font-body;
+    font-weight: 800;
+    cursor: pointer;
+    touch-action: manipulation;
+
+    &:active {
+      transform: scale(0.985);
+    }
+  }
+
+  .mobile-trigger-main {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-width: 0;
+  }
+
+  .mobile-trigger-count {
+    min-width: 1.45rem;
+    height: 1.45rem;
+    border-radius: $r-full;
+    background: rgba(255, 255, 255, 0.18);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 0.35rem;
+    font-family: $font-mono;
+    font-size: 0.76rem;
+  }
+
+  .mobile-trigger-total {
+    font-family: $font-mono;
+    font-size: 0.92rem;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  .mobile-pedido-sheet {
+    max-height: min(72svh, 620px);
+  }
+
+  .mobile-items-list {
+    max-height: 45svh;
+    overflow-y: auto;
+    padding: 0 0 0.85rem;
+  }
+
+  .mobile-empty {
+    min-height: 30svh;
+    padding-block: 2rem;
+  }
+
+  .mobile-pedido-footer {
+    margin-inline: -1.25rem;
+    margin-bottom: -1.25rem;
+    padding-bottom: calc(0.85rem + env(safe-area-inset-bottom, 0px));
+    box-shadow: 0 -8px 24px rgba(31, 25, 20, 0.1);
+  }
+}
+
+@media (max-width: 360px) {
+  .productos-grid {
+    grid-template-columns: 1fr;
+    max-height: none;
+  }
+
+  .header-title,
+  .header-sub {
+    max-width: 42vw;
+  }
+}
+
+@media (max-width: #{$bp-mobile}) {
+  :global(.mobile-pedido-dialog.p-dialog) {
+    margin: 0;
+    max-height: 84svh;
+    border-radius: 18px 18px 0 0;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+  }
+
+  :global(.mobile-pedido-dialog .p-dialog-header) {
+    padding: 0.9rem 1rem;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  }
+
+  :global(.mobile-pedido-dialog .p-dialog-content) {
+    padding: 0 1.25rem 1.25rem;
+    overflow: hidden;
+  }
 }
 
 .producto-item.unavailable {
@@ -541,4 +837,5 @@
 .producto-item.selected {
   border-color: rgba(22, 163, 74, 0.45);
   background: rgba(22, 163, 74, 0.08);
+  box-shadow: inset 0 0 0 1px rgba(22, 163, 74, 0.18);
 }

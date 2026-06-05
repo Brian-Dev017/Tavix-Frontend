@@ -16,6 +16,7 @@
   min-height: 148px;
   font-family: $font-body;
   box-shadow: $shadow-md;
+  touch-action: manipulation;
 
   // Fondo de color sutil
   &::before {
@@ -165,4 +166,61 @@
   gap: 0.2rem;
   font-family: $font-mono;
   font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: #{$bp-mobile}) {
+  .mesa-card {
+    border-radius: $r-lg;
+    min-height: 126px;
+    aspect-ratio: 1 / 1;
+
+    &.clickable:hover {
+      transform: none;
+    }
+
+    &.clickable:active {
+      transform: scale(0.98);
+    }
+  }
+
+  .card-inner {
+    padding: 0.8rem 0.72rem 0.72rem;
+  }
+
+  .mesa-numero {
+    font-size: 1.45rem;
+  }
+
+  .estado-icon-wrap {
+    width: 46px;
+    height: 46px;
+  }
+
+  .estado-ico {
+    font-size: 1.2rem;
+  }
+
+  .mesa-estado {
+    font-size: 0.58rem;
+    letter-spacing: 0.06em;
+  }
+
+  .mesa-cap {
+    font-size: 0.64rem;
+  }
+}
+
+@media (max-width: 360px) {
+  .mesa-card {
+    min-height: 112px;
+  }
+
+  .card-inner {
+    padding: 0.68rem;
+  }
+
+  .estado-icon-wrap {
+    width: 40px;
+    height: 40px;
+  }
 }

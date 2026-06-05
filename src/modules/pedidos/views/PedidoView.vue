@@ -52,6 +52,7 @@ const observacion = ref("");
 const loading = ref(true);
 const agregando = ref(false);
 const confirmDialogVisible = ref(false);
+const pedidoMobileVisible = ref(false);
 let pendingSequence = 0;
 
 const productosActivos = computed(
@@ -180,12 +181,14 @@ function quitarPendiente(localId: number) {
 
 function abrirConfirmacionPedido() {
   if (!pedidoId.value || itemsPendientes.value.length === 0) return;
+  pedidoMobileVisible.value = false;
   confirmDialogVisible.value = true;
 }
 
 async function confirmarPedido() {
   if (!pedidoId.value || itemsPendientes.value.length === 0) return;
   confirmDialogVisible.value = false;
+  pedidoMobileVisible.value = false;
   agregando.value = true;
   try {
     const enviados = [];
@@ -449,6 +452,19 @@ function mergeObservaciones(actual: string, incoming: string) {
         </div>
       </main>
     </div>
+
+    <button
+      class="mobile-pedido-trigger"
+      type="button"
+      @click="pedidoMobileVisible = true"
+    >
+      <span class="mobile-trigger-main">
+        <i class="pi pi-receipt"></i>
+        Ver pedido
+        <span class="mobile-trigger-count">{{ totalItemsVista }}</span>
+      </span>
+      <span class="mobile-trigger-total">S/ {{ totalGeneral.toFixed(2) }}</span>
+    </button>
   </div>
 
   <div v-else class="pedido-loading">
@@ -463,7 +479,14 @@ function mergeObservaciones(actual: string, incoming: string) {
     :style="{ width: '28rem', maxWidth: '95vw' }"
   >
     <div class="dialog-copy">
-      <p>Se enviaran {{ itemsPendientes.length }} item{{ itemsPendientes.length !== 1 ? "s" : "" }} a cocina.</p>
+      <p>
+        <template v-if="esParaLlevar">
+          Se agregaran {{ itemsPendientes.length }} item{{ itemsPendientes.length !== 1 ? "s" : "" }} al pedido para cobrar en caja.
+        </template>
+        <template v-else>
+          Se enviaran {{ itemsPendientes.length }} item{{ itemsPendientes.length !== 1 ? "s" : "" }} a cocina.
+        </template>
+      </p>
       <p>Total a enviar: <strong>S/ {{ totalPendiente.toFixed(2) }}</strong></p>
     </div>
 
@@ -482,6 +505,82 @@ function mergeObservaciones(actual: string, incoming: string) {
         @click="confirmarPedido"
       />
     </template>
+  </Dialog>
+
+  <Dialog
+    v-model:visible="pedidoMobileVisible"
+    header="Pedido"
+    modal
+    class="mobile-pedido-dialog"
+    :style="{ width: '100vw', maxWidth: '100vw' }"
+  >
+    <div class="mobile-pedido-sheet">
+      <div v-if="totalItemsVista === 0" class="empty-pedido mobile-empty">
+        <i class="pi pi-cart-plus"></i>
+        <p>Sin items aun</p>
+        <span>Agrega productos para revisar el pedido aqui.</span>
+      </div>
+
+      <div v-else class="items-list mobile-items-list">
+        <div v-if="itemsPendientes.length > 0" class="list-block">
+          <div class="list-block-title">Pendientes por confirmar</div>
+          <div v-for="item in itemsPendientes" :key="item.localId" class="item-row pending">
+            <div class="item-info item-info-column">
+              <span class="item-nombre">
+                {{ item.cantidad }}x {{ item.productoNombre }}
+              </span>
+              <span v-if="item.observaciones" class="item-observacion">
+                {{ item.observaciones }}
+              </span>
+              <Badge value="PENDIENTE" severity="warn" class="item-estado" />
+            </div>
+            <span class="item-precio">S/ {{ item.subtotal.toFixed(2) }}</span>
+            <button class="item-remove" @click="quitarPendiente(item.localId)" title="Quitar item">
+              <i class="pi pi-times"></i>
+            </button>
+          </div>
+        </div>
+
+        <div v-if="itemsAgrupados.length > 0" class="list-block">
+          <div class="list-block-title">Enviados</div>
+          <div v-for="item in itemsAgrupados" :key="`mobile-${item.productoId}-${item.estado}`" class="item-row">
+            <div class="item-info">
+              <span class="item-nombre">
+                {{ item.cantidad }}x {{ item.productoNombre }}
+              </span>
+              <span v-if="item.observaciones" class="item-observacion">
+                {{ item.observaciones }}
+              </span>
+              <Badge
+                :value="item.estado"
+                severity="secondary"
+                class="item-estado"
+              />
+            </div>
+            <span class="item-precio">S/ {{ item.subtotal.toFixed(2) }}</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="pedido-footer mobile-pedido-footer">
+        <div v-if="itemsPendientes.length > 0" class="footer-row">
+          <span class="total-label">Pendiente por confirmar</span>
+          <span class="pending-amount">S/ {{ totalPendiente.toFixed(2) }}</span>
+        </div>
+        <div class="footer-row">
+          <span class="total-label">Total general</span>
+          <span class="total-amount">S/ {{ totalGeneral.toFixed(2) }}</span>
+        </div>
+        <Button
+          v-if="itemsPendientes.length > 0"
+          label="Confirmar pedido"
+          icon="pi pi-check"
+          size="small"
+          :loading="agregando"
+          @click="abrirConfirmacionPedido"
+        />
+      </div>
+    </div>
   </Dialog>
 </template>
 
