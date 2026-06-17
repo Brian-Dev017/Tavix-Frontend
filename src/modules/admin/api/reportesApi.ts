@@ -26,11 +26,19 @@ export interface PlatoVendido {
   cantidad: number
 }
 
+export interface VentasPorCategoria {
+  categoria: string
+  total: number
+  cantidad: number
+}
+
 export interface DashboardData {
   ventasHoy: number
   pedidosHoy: number
   ventasPorMetodo: VentasPorMetodo[]
   platosVendidos: PlatoVendido[]
+  ventasPorDia: VentasPorDia[]
+  ventasPorCategoria: VentasPorCategoria[]
 }
 
 export interface ComprobanteHistorial {

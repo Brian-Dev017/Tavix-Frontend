@@ -8,14 +8,18 @@ import {
   reportesApi,
   type DashboardData,
   type VentasPorMetodo,
+  type VentasPorCategoria,
 } from "@/modules/admin/api/reportesApi";
 import { adminApi } from "@/modules/admin/api/adminApi";
 import { mesasApi } from "@/modules/mesas/api/mesasApi";
+import { useRealtime } from "@/shared/composables/useRealtime";
+import { onUnmounted } from "vue";
 
 const router = useRouter();
 const toast = useToast();
 
 const loading = ref(true);
+const enVivo = ref(false);
 const dashboard = ref<DashboardData | null>(null);
 const desde = ref(new Date().toISOString().slice(0, 10));
 const hasta = ref(new Date().toISOString().slice(0, 10));
@@ -34,27 +38,43 @@ const today = computed(() =>
   }),
 );
 
-// Chart data
+// Chart data — serie diaria real de ventas
 const barChartData = computed(() => {
-  const metodos = dashboard.value?.ventasPorMetodo ?? [];
-  const labels = metodos.map((m) => m.metodo);
-  const totals = metodos.map((m) => Number(m.total));
+  const dias = dashboard.value?.ventasPorDia ?? [];
   return {
-    labels,
+    labels: dias.map((d) => d.fecha.slice(5)), // MM-DD
     datasets: [
       {
         label: "Ventas (S/)",
-        data: totals,
+        data: dias.map((d) => Number(d.total)),
+        backgroundColor: "#D67B93",
+        borderRadius: 6,
+        borderSkipped: false,
+      },
+    ],
+  };
+});
+
+// Ventas por categoría (doughnut)
+const categoriaChartData = computed(() => {
+  const cats: VentasPorCategoria[] = dashboard.value?.ventasPorCategoria ?? [];
+  return {
+    labels: cats.map((c) => c.categoria),
+    datasets: [
+      {
+        data: cats.map((c) => Number(c.total)),
         backgroundColor: [
-          "#D67B93",
           "#6B8E6E",
+          "#D67B93",
           "#d97706",
           "#2563eb",
           "#9333ea",
           "#16a34a",
+          "#C8517A",
         ],
-        borderRadius: 6,
-        borderSkipped: false,
+        hoverOffset: 6,
+        borderWidth: 2,
+        borderColor: "#ffffff",
       },
     ],
   };
@@ -134,7 +154,25 @@ async function cargar() {
   }
 }
 
-onMounted(cargar);
+// Auto-refresco en tiempo real (se actualiza solo al haber ventas o cambios de pedido)
+let reloadTimer: ReturnType<typeof setTimeout> | null = null;
+function recargarDebounced() {
+  enVivo.value = true;
+  if (reloadTimer) clearTimeout(reloadTimer);
+  reloadTimer = setTimeout(() => cargar(), 600);
+}
+const { connect } = useRealtime({
+  "/topic/ventas": recargarDebounced,
+  "/topic/pedidos": recargarDebounced,
+});
+
+onMounted(() => {
+  cargar();
+  connect();
+});
+onUnmounted(() => {
+  if (reloadTimer) clearTimeout(reloadTimer);
+});
 </script>
 
 <template>
@@ -214,13 +252,16 @@ onMounted(cargar);
       <div class="chart-card chart-bar-wrap">
         <div class="chart-card-header">
           <div>
-            <div class="chart-title">Ventas de la semana</div>
+            <div class="chart-title">Ventas por día</div>
             <div class="chart-sub">Ingresos diarios en S/</div>
           </div>
+          <span v-if="enVivo" class="live-badge"
+            ><span class="live-dot"></span>En vivo</span
+          >
         </div>
         <div
           class="bar-chart-body"
-          v-if="!loading && (dashboard?.ventasPorMetodo?.length ?? 0) > 0"
+          v-if="!loading && (dashboard?.ventasPorDia?.length ?? 0) > 0"
         >
           <Chart
             type="bar"
@@ -273,20 +314,25 @@ onMounted(cargar);
 
     <!-- Second row: Pedidos activos + Métodos de pago -->
     <div class="dash-bottom">
-      <!-- Pedidos activos (from dashboard) -->
+      <!-- Ventas por categoría (doughnut) -->
       <div class="chart-card">
         <div class="chart-card-header">
-          <div class="chart-title">Pedidos activos</div>
-          <span class="badge-count">{{ dashboard?.pedidosHoy ?? 0 }}</span>
+          <div class="chart-title">Ventas por categoría</div>
         </div>
-        <div class="pedidos-empty" v-if="!loading && !dashboard?.pedidosHoy">
-          <i class="pi pi-inbox" style="font-size: 2rem; opacity: 0.15"></i>
-          <p>No hay pedidos activos</p>
+        <div
+          class="donut-body"
+          v-if="!loading && (dashboard?.ventasPorCategoria?.length ?? 0) > 0"
+        >
+          <Chart
+            type="doughnut"
+            :data="categoriaChartData"
+            :options="donutChartOptions"
+            style="height: 180px"
+          />
         </div>
-        <div class="pedidos-list" v-else-if="!loading">
-          <p class="pedidos-hint">
-            {{ dashboard?.pedidosHoy }} pedido(s) procesados hoy
-          </p>
+        <div class="chart-empty" v-else-if="!loading">
+          <i class="pi pi-chart-pie"></i>
+          <p>Sin ventas por categoría hoy</p>
         </div>
         <div class="chart-skeleton" v-else></div>
       </div>
@@ -568,6 +614,38 @@ onMounted(cargar);
   font-size: 0.7rem;
   font-weight: 700;
   padding: 0.15rem 0.5rem;
+}
+
+.live-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.66rem;
+  font-weight: 700;
+  color: $c-green;
+  background: $c-green-bg;
+  border-radius: $r-full;
+  padding: 0.12rem 0.5rem;
+}
+
+.live-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: $c-green;
+  animation: livePulse 1.4s ease-in-out infinite;
+}
+
+@keyframes livePulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.4;
+    transform: scale(0.7);
+  }
 }
 
 .chart-empty {
