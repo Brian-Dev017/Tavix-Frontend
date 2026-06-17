@@ -133,43 +133,6 @@
 }
 
 // ── Filtro de categorías ──────────────────────────────
-.categorias {
-  display: flex;
-  gap: 0.35rem;
-  flex-wrap: wrap;
-  padding: 0.7rem 0.9rem;
-  border-bottom: 1px solid $border-subtle;
-  flex-shrink: 0;
-  background: linear-gradient(180deg, $bg-card-alt 0%, transparent 100%);
-}
-
-.categoria-btn {
-  padding: 0.28rem 0.75rem;
-  border: 1px solid $border-subtle;
-  border-radius: $r-full;
-  background: transparent;
-  cursor: pointer;
-  font-size: 0.76rem;
-  font-weight: 600;
-  color: $text-muted;
-  transition: $t-fast;
-  font-family: $font-body;
-  white-space: nowrap;
-
-  &:hover {
-    background: $bg-hover;
-    border-color: $border-medium;
-    color: $text-primary;
-  }
-
-  &.active {
-    background: $amber-bg;
-    border-color: $amber;
-    color: $amber;
-    box-shadow: 0 0 10px $amber-glow-sm;
-  }
-}
-
 // ── Campo de observación ──────────────────────────────
 .obs-field {
   padding: 0.55rem 0.85rem;

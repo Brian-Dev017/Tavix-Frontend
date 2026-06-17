@@ -116,6 +116,10 @@ router.beforeEach((to, _from, next) => {
   }
 
   const roles = to.meta.roles as string[] | undefined
+  if (roles && !auth.rol) {
+    auth.logout()
+    return next('/login')
+  }
   if (roles && auth.rol && !roles.includes(auth.rol)) {
     return next(getRolDefaultRoute(auth.rol))
   }

@@ -9,6 +9,7 @@ export interface PedidoResumen {
   igv: number
   totalConIgv: number
   estadoPedido: string
+  paraLlevar?: boolean
   items: PedidoItem[]
 }
 

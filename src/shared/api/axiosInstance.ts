@@ -27,11 +27,14 @@ api.interceptors.response.use(
   async (error) => {
     const original = error.config
     const status = error.response?.status
+    const auth = useAuthStore()
+    const hasActiveSession = !!auth.accessToken
+    const isAuthEndpoint = typeof original?.url === 'string' && original.url.startsWith('/api/auth/')
 
     // Manejar 401 (no autorizado) y 403 cuando proviene de token inválido/expirado
-    const isAuthError = status === 401 || (status === 403 && isTokenExpired(useAuthStore().accessToken))
+    const isAuthError = status === 401 || (status === 403 && isTokenExpired(auth.accessToken))
 
-    if (isAuthError && original && !original._retry) {
+    if (isAuthError && hasActiveSession && !isAuthEndpoint && original && !original._retry) {
       original._retry = true
       try {
         const res = await axios.post(
@@ -39,12 +42,10 @@ api.interceptors.response.use(
           {},
           { withCredentials: true }
         )
-        const auth = useAuthStore()
         auth.setAccessToken(res.data.data)
         original.headers.Authorization = `Bearer ${res.data.data}`
         return api(original)
       } catch {
-        const auth = useAuthStore()
         auth.logout()
         window.location.href = '/login'
         return Promise.reject(error)

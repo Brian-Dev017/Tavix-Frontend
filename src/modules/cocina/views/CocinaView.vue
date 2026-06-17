@@ -8,6 +8,9 @@ import { useRol } from "@/shared/composables/useRol";
 import { Client } from "@stomp/stompjs";
 import SockJS from "sockjs-client";
 import { cocinaApi, type ColaItem } from "@/modules/cocina/api/cocinaApi";
+import Button from "primevue/button";
+import Dialog from "primevue/dialog";
+import InputText from "primevue/inputtext";
 
 const router = useRouter();
 const toast = useToast();
@@ -21,6 +24,10 @@ const API_BASE_URL = (import.meta.env.VITE_API_URL as string).replace(
 const cola = ref<ColaItem[]>([]);
 const loading = ref(true);
 const now = ref(Date.now());
+const cancelDialogVisible = ref(false);
+const cancelando = ref(false);
+const itemCancelando = ref<ColaItem | null>(null);
+const motivoCancelacion = ref("");
 let ticker: ReturnType<typeof setInterval>;
 let stompClient: Client | null = null;
 
@@ -152,11 +159,29 @@ async function cambiarEstado(item: ColaItem, nuevoEstado: string) {
 }
 
 async function cancelarItem(item: ColaItem) {
-  const motivo = window.prompt(`Motivo para cancelar ${item.producto}`);
-  if (!motivo || !motivo.trim()) return;
+  itemCancelando.value = item;
+  motivoCancelacion.value = "";
+  cancelDialogVisible.value = true;
+}
+
+async function confirmarCancelacion() {
+  if (!itemCancelando.value) return;
+  const motivo = motivoCancelacion.value.trim();
+  if (!motivo) {
+    toast.add({
+      severity: "warn",
+      summary: "Motivo requerido",
+      detail: "Ingresa el motivo de cancelacion",
+      life: 2500,
+    });
+    return;
+  }
+  cancelando.value = true;
   try {
-    await cocinaApi.cancelarItem(item.detalleId, motivo.trim());
+    const item = itemCancelando.value;
+    await cocinaApi.cancelarItem(item.detalleId, motivo);
     cola.value = cola.value.filter((i) => i.detalleId !== item.detalleId);
+    cancelDialogVisible.value = false;
     toast.add({
       severity: "warn",
       summary: "Cancelado",
@@ -171,6 +196,8 @@ async function cancelarItem(item: ColaItem) {
       detail: err.response?.data?.message ?? "No se pudo cancelar el item",
       life: 3000,
     });
+  } finally {
+    cancelando.value = false;
   }
 }
 
@@ -368,6 +395,45 @@ onUnmounted(() => {
         </div>
       </div>
     </div>
+
+    <Dialog
+      v-model:visible="cancelDialogVisible"
+      header="Cancelar item"
+      modal
+      :style="{ width: '28rem', maxWidth: '95vw' }"
+    >
+      <div class="dialog-form">
+        <p class="dialog-copy">
+          Ingresa el motivo para cancelar {{ itemCancelando?.producto ?? "el item" }}.
+        </p>
+        <div class="form-field">
+          <label>Motivo</label>
+          <InputText
+            v-model="motivoCancelacion"
+            placeholder="Producto agotado, error de pedido..."
+            fluid
+            @keyup.enter="confirmarCancelacion"
+          />
+        </div>
+      </div>
+
+      <template #footer>
+        <Button
+          label="Cancelar"
+          severity="secondary"
+          text
+          :disabled="cancelando"
+          @click="cancelDialogVisible = false"
+        />
+        <Button
+          label="Confirmar cancelacion"
+          icon="pi pi-times-circle"
+          severity="danger"
+          :loading="cancelando"
+          @click="confirmarCancelacion"
+        />
+      </template>
+    </Dialog>
   </div>
 </template>
 

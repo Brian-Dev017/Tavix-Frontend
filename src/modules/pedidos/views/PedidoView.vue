@@ -53,6 +53,7 @@ const loading = ref(true);
 const agregando = ref(false);
 const confirmDialogVisible = ref(false);
 const pedidoMobileVisible = ref(false);
+const salirDialogVisible = ref(false);
 let pendingSequence = 0;
 
 const productosActivos = computed(
@@ -90,14 +91,14 @@ const itemsAgrupados = computed(() => {
 onMounted(async () => {
   loading.value = true;
   try {
-    const [menuRes, pedidoRes] = await Promise.all([
-      menuApi.getMenu(),
-      esParaLlevar.value ? pedidosApi.crearParaLlevar() : pedidosApi.crear(sesionId.value),
-    ]);
+    const menuRes = await menuApi.getMenu();
     menu.value = menuRes.data.data;
-    pedidoId.value = pedidoRes.data.data.id;
-    const itemsRes = await pedidosApi.getItems(pedidoId.value);
-    items.value = itemsRes.data.data;
+    if (!esParaLlevar.value) {
+      const pedidoRes = await pedidosApi.crear(sesionId.value);
+      pedidoId.value = pedidoRes.data.data.id;
+      const itemsRes = await pedidosApi.getItems(pedidoId.value);
+      items.value = itemsRes.data.data;
+    }
   } catch (e: unknown) {
     const err = e as { response?: { data?: { message?: string } } };
     toast.add({
@@ -180,17 +181,22 @@ function quitarPendiente(localId: number) {
 }
 
 function abrirConfirmacionPedido() {
-  if (!pedidoId.value || itemsPendientes.value.length === 0) return;
+  if ((!pedidoId.value && !esParaLlevar.value) || itemsPendientes.value.length === 0) return;
   pedidoMobileVisible.value = false;
   confirmDialogVisible.value = true;
 }
 
 async function confirmarPedido() {
-  if (!pedidoId.value || itemsPendientes.value.length === 0) return;
+  if ((!pedidoId.value && !esParaLlevar.value) || itemsPendientes.value.length === 0) return;
   confirmDialogVisible.value = false;
   pedidoMobileVisible.value = false;
   agregando.value = true;
   try {
+    if (!pedidoId.value && esParaLlevar.value) {
+      const pedidoRes = await pedidosApi.crearParaLlevar();
+      pedidoId.value = pedidoRes.data.data.id;
+    }
+    if (!pedidoId.value) return;
     const enviados = [];
     for (const item of itemsPendientes.value) {
       const res = await pedidosApi.agregarItem(
@@ -226,9 +232,13 @@ async function confirmarPedido() {
 
 async function volverAMesas() {
   if (itemsPendientes.value.length > 0) {
-    const ok = window.confirm("Hay items pendientes sin confirmar. Si sales, se descartaran. Deseas continuar?");
-    if (!ok) return;
+    salirDialogVisible.value = true;
+    return;
   }
+  await salirSinPendientes();
+}
+
+async function salirSinPendientes() {
   if (!esParaLlevar.value && items.value.length === 0) {
     try {
       await mesasApi.cerrarSesion(sesionId.value);
@@ -243,6 +253,12 @@ async function volverAMesas() {
     }
   }
   router.push(rutaRetorno.value);
+}
+
+async function descartarPendientesYSalir() {
+  itemsPendientes.value = [];
+  salirDialogVisible.value = false;
+  await salirSinPendientes();
 }
 
 function mergeObservaciones(actual: string, incoming: string) {
@@ -503,6 +519,33 @@ function mergeObservaciones(actual: string, incoming: string) {
         icon="pi pi-check"
         :loading="agregando"
         @click="confirmarPedido"
+      />
+    </template>
+  </Dialog>
+
+  <Dialog
+    v-model:visible="salirDialogVisible"
+    header="Descartar items"
+    modal
+    :style="{ width: '28rem', maxWidth: '95vw' }"
+  >
+    <div class="dialog-copy">
+      <p>Hay items pendientes sin confirmar. Si sales, se descartaran.</p>
+      <p>Items pendientes: <strong>{{ itemsPendientes.length }}</strong></p>
+    </div>
+
+    <template #footer>
+      <Button
+        label="Cancelar"
+        severity="secondary"
+        text
+        @click="salirDialogVisible = false"
+      />
+      <Button
+        label="Descartar y salir"
+        icon="pi pi-trash"
+        severity="danger"
+        @click="descartarPendientesYSalir"
       />
     </template>
   </Dialog>

@@ -10,15 +10,13 @@ export interface AuthUser {
 
 export type AuthRole = AuthUser['rol']
 
-const LS_TOKEN = 'auth_token'
-const LS_USER  = 'auth_user'
+const LEGACY_LS_TOKEN = 'auth_token'
+const LEGACY_LS_USER = 'auth_user'
 
 function parseJwtSub(token: string | null): number | null {
   const payload = decodeJwtPayload(token)
   return payload?.sub ? Number(payload.sub) : null
 }
-
-const VALID_ROLES = ['AD', 'ME', 'CO', 'CA']
 
 export function normalizeAuthRole(value: unknown): AuthRole | null {
   const raw = String(value ?? '').trim().toUpperCase()
@@ -48,26 +46,11 @@ export function normalizeAuthRole(value: unknown): AuthRole | null {
 }
 
 export const useAuthStore = defineStore('auth', () => {
-  // Leer estado persistido
-  let _token = localStorage.getItem(LS_TOKEN)
-  let _user: AuthUser | null = null
-  try { _user = JSON.parse(localStorage.getItem(LS_USER) ?? 'null') } catch { /* ignore */ }
+  localStorage.removeItem(LEGACY_LS_TOKEN)
+  localStorage.removeItem(LEGACY_LS_USER)
 
-  // Sanidad: limpiar si hay token sin usuario válido (estado corrupto → causaba loop)
-  if (_user) {
-    const normalizedRole = normalizeAuthRole(_user.rol)
-    if (normalizedRole) _user.rol = normalizedRole
-  }
-
-  if (_token && (!_user || !VALID_ROLES.includes(_user.rol))) {
-    localStorage.removeItem(LS_TOKEN)
-    localStorage.removeItem(LS_USER)
-    _token = null
-    _user = null
-  }
-
-  const accessToken = ref<string | null>(_token)
-  const user = ref<AuthUser | null>(_user)
+  const accessToken = ref<string | null>(null)
+  const user = ref<AuthUser | null>(null)
 
   const isAuthenticated = computed(() => !!accessToken.value)
   const rol = computed(() => user.value?.rol)
@@ -75,7 +58,6 @@ export const useAuthStore = defineStore('auth', () => {
 
   function setAccessToken(token: string) {
     accessToken.value = token
-    localStorage.setItem(LS_TOKEN, token)
   }
 
   function setUser(userData: AuthUser) {
@@ -83,16 +65,14 @@ export const useAuthStore = defineStore('auth', () => {
     if (!normalizedRole) {
       throw new Error(`Rol no reconocido: ${String(userData.rol)}`)
     }
-    const normalizedUser = { ...userData, rol: normalizedRole }
-    user.value = normalizedUser
-    localStorage.setItem(LS_USER, JSON.stringify(normalizedUser))
+    user.value = { ...userData, rol: normalizedRole }
   }
 
   function logout() {
     accessToken.value = null
     user.value = null
-    localStorage.removeItem(LS_TOKEN)
-    localStorage.removeItem(LS_USER)
+    localStorage.removeItem(LEGACY_LS_TOKEN)
+    localStorage.removeItem(LEGACY_LS_USER)
   }
 
   return {

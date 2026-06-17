@@ -233,7 +233,7 @@ function seleccionarPedido(p: PedidoResumen) {
 }
 
 function esPedidoParaLlevar(p: PedidoResumen | null) {
-  return String(p?.mesa ?? "").toLowerCase().includes("llevar");
+  return Boolean(p?.paraLlevar) || String(p?.mesa ?? "").toLowerCase().includes("llevar");
 }
 
 function cancelarSeleccion() {
