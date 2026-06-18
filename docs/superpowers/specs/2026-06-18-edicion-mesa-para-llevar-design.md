@@ -9,7 +9,8 @@ mesas sin eliminar las protecciones necesarias para su uso operativo.
 
 ## Comportamiento
 
-- La mesa para llevar podrá abrir el formulario de edición.
+- La mesa para llevar podrá abrir el formulario de edición únicamente cuando
+  esté `DISPONIBLE`.
 - Su nombre seguirá siendo `Para llevar`; no podrá cambiarse desde el formulario.
 - El administrador podrá modificar únicamente su capacidad.
 - Su estado podrá alternarse entre `DISPONIBLE` e `INACTIVA`.
@@ -25,8 +26,14 @@ mesas sin eliminar las protecciones necesarias para su uso operativo.
 - Separar las reglas de permiso para editar, cambiar estado y eliminar.
 - Detectar la mesa para llevar por su nombre actual.
 - Mostrar su número como un campo bloqueado al editar.
+- Deshabilitar el botón de edición cuando esté `INACTIVA`.
 - Mantener habilitado el botón de estado cuando esté `DISPONIBLE` o `INACTIVA`.
 - Mantener siempre deshabilitado el botón de eliminación.
+- En Caja, consultar el estado operativo de la mesa para llevar.
+- Deshabilitar el botón `Para llevar` cuando la mesa esté `INACTIVA` o no pueda
+  confirmarse como `DISPONIBLE`.
+- Bloquear también el acceso directo a `/pedido-para-llevar` mientras la mesa
+  esté inactiva.
 
 ### Backend
 
@@ -40,6 +47,10 @@ mesas sin eliminar las protecciones necesarias para su uso operativo.
 ## Verificación
 
 - Probar edición de capacidad de una mesa para llevar disponible.
+- Probar que una mesa para llevar inactiva no puede abrir el formulario de
+  edición, pero sí puede reactivarse.
+- Probar que Caja deshabilita el acceso para llevar cuando la mesa está inactiva.
+- Probar que una navegación directa al pedido para llevar vuelve a Caja.
 - Probar que el nombre no cambia.
 - Probar transición de disponible a inactiva y viceversa.
 - Probar rechazo de edición y cambio de estado cuando está ocupada.

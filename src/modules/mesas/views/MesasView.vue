@@ -6,6 +6,7 @@ import { mesasApi, type MesaDTO } from "@/modules/mesas/api/mesasApi";
 import { performLogout } from "@/shared/auth/logout";
 import { useRol } from "@/shared/composables/useRol";
 import { useAuthStore } from "@/modules/auth/store/authStore";
+import { useRealtime } from "@/shared/composables/useRealtime";
 import MesaCard from "@/modules/mesas/components/MesaCard.vue";
 
 const router = useRouter();
@@ -30,6 +31,7 @@ const reservadas = computed(
 );
 
 async function cargarMesas(silent = false) {
+  if (refreshing.value) return;
   if (!silent) loading.value = true;
   refreshing.value = true;
   try {
@@ -97,8 +99,13 @@ function handleVisibilityChange() {
   }
 }
 
+const { connect } = useRealtime({
+  "/topic/pedidos": () => cargarMesas(true),
+});
+
 onMounted(() => {
   cargarMesas();
+  connect();
   refrescoMesas = setInterval(() => cargarMesas(true), 10000);
   window.addEventListener(MESA_LIBERADA_EVENT, handleMesaLiberada);
   document.addEventListener("visibilitychange", handleVisibilityChange);

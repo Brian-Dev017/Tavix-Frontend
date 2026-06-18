@@ -3,8 +3,7 @@ import { useAuthStore } from '@/modules/auth/store/authStore'
 import { decodeJwtPayload } from '@/shared/auth/jwt'
 
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL as string,
-  withCredentials: true
+  baseURL: import.meta.env.VITE_API_URL as string
 })
 
 /** Comprueba si el JWT ya expiró sin hacer una petición al servidor */
@@ -37,13 +36,8 @@ api.interceptors.response.use(
     if (isAuthError && hasActiveSession && !isAuthEndpoint && original && !original._retry) {
       original._retry = true
       try {
-        const res = await axios.post(
-          `${import.meta.env.VITE_API_URL}/api/auth/refresh`,
-          {},
-          { withCredentials: true }
-        )
-        auth.setAccessToken(res.data.data)
-        original.headers.Authorization = `Bearer ${res.data.data}`
+        const accessToken = await auth.refreshSession()
+        original.headers.Authorization = `Bearer ${accessToken}`
         return api(original)
       } catch {
         auth.logout()

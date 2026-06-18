@@ -4,6 +4,12 @@ import type { MesaDTO } from "@/modules/mesas/api/mesasApi";
 const props = defineProps<{ mesa: MesaDTO }>();
 const emit = defineEmits<{ click: [mesa: MesaDTO] }>();
 
+function mesaLabel(numero: string): string {
+  return numero.toLowerCase().startsWith("mesa ")
+    ? numero
+    : `Mesa ${numero}`;
+}
+
 const estadoConfig: Record<
   MesaDTO["estado"],
   { color: string; glow: string; bg: string; label: string; icon: string }
@@ -53,12 +59,12 @@ const estadoConfig: Record<
     }"
     @click="emit('click', mesa)"
     role="button"
-    :aria-label="`Mesa ${mesa.numero}, ${estadoConfig[mesa.estado].label}`"
+    :aria-label="`${mesaLabel(mesa.numero)}, ${estadoConfig[mesa.estado].label}`"
   >
     <div class="card-bg"></div>
     <div class="card-inner">
       <div class="card-header">
-        <span class="mesa-numero">{{ mesa.numero }}</span>
+        <span class="mesa-numero">{{ mesaLabel(mesa.numero) }}</span>
         <span class="estado-dot"></span>
       </div>
       <div class="estado-icon-wrap">

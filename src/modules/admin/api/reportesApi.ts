@@ -117,6 +117,16 @@ export const reportesApi = {
     api.get<{ data: DashboardData }>('/api/reportes/dashboard', { params: { desde, hasta } }),
   getVentas:      (desde: string, hasta: string) =>
     api.get<{ data: ReporteVentas }>('/api/reportes/ventas', { params: { desde, hasta } }),
+  exportDashboardExcel: (desde: string, hasta: string) =>
+    api.get<Blob>('/api/reportes/dashboard/excel', {
+      params: { desde, hasta },
+      responseType: 'blob',
+    }),
+  exportVentasExcel: (desde: string, hasta: string) =>
+    api.get<Blob>('/api/reportes/ventas/excel', {
+      params: { desde, hasta },
+      responseType: 'blob',
+    }),
   getHistorial:   (page = 0, size = 20, estado?: string) =>
     api.get<{ data: HistorialPage }>('/api/reportes/historial', { params: { page, size, estado } }),
   getHistorialDetalle: (id: number) =>

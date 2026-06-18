@@ -2,6 +2,8 @@ export interface JwtPayload {
   exp?: number
   sub?: string
   rol?: string
+  nombre?: string
+  apellido?: string
   [key: string]: unknown
 }
 

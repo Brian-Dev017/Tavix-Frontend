@@ -14,6 +14,7 @@ dist-ssr
 
 # Documentacion local generada
 docs/
+.superpowers/
 
 # Variables de entorno (contienen credenciales)
 .env

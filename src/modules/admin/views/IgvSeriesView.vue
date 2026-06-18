@@ -2,7 +2,6 @@
 import { ref, onMounted } from "vue";
 import { useToast } from "primevue/usetoast";
 import { useConfirm } from "primevue/useconfirm";
-import Toast from "primevue/toast";
 import ConfirmDialog from "primevue/confirmdialog";
 import Dialog from "primevue/dialog";
 import InputText from "primevue/inputtext";
@@ -168,7 +167,6 @@ onMounted(cargar);
 
 <template>
   <div class="section-page">
-    <Toast />
     <ConfirmDialog />
 
     <!-- Series header -->

@@ -17,6 +17,11 @@ import InputNumber from "primevue/inputnumber";
 import Select from "primevue/select";
 import Badge from "primevue/badge";
 import { cleanText, maxLength, numberRange } from "@/shared/validation/inputValidation";
+import {
+  isColdDrinksCategory,
+  kitchenDispatchMessage,
+  sumItemQuantities,
+} from "@/shared/utils/orderRules";
 
 interface ItemPendiente {
   localId: number;
@@ -26,6 +31,9 @@ interface ItemPendiente {
   precio: number;
   subtotal: number;
   observaciones: string;
+  categoriaId: number;
+  categoriaNombre: string;
+  requiereCocina: boolean;
 }
 
 const route = useRoute();
@@ -47,6 +55,7 @@ const items = ref<ItemPedido[]>([]);
 const itemsPendientes = ref<ItemPendiente[]>([]);
 const categoriaActiva = ref<number | null>(null);
 const productoPendiente = ref<ProductoDTO | null>(null);
+const productoCategoriaId = ref<number | null>(null);
 const cantidad = ref(1);
 const observacion = ref("");
 const loading = ref(true);
@@ -71,6 +80,23 @@ const totalPendiente = computed(() =>
 const totalGeneral = computed(() => totalPedido.value + totalPendiente.value);
 
 const totalItemsVista = computed(() => items.value.length + itemsPendientes.value.length);
+const unidadesPendientes = computed(() =>
+  sumItemQuantities(itemsPendientes.value),
+);
+const unidadesPendientesCocina = computed(() =>
+  sumItemQuantities(
+    itemsPendientes.value.filter((item) => item.requiereCocina),
+  ),
+);
+const unidadesPendientesDirectas = computed(
+  () => unidadesPendientes.value - unidadesPendientesCocina.value,
+);
+const mensajeConfirmacionMesa = computed(() =>
+  kitchenDispatchMessage(
+    unidadesPendientesCocina.value,
+    unidadesPendientesDirectas.value,
+  ),
+);
 
 const itemsAgrupados = computed(() => {
   const grouped = new Map<string, ItemPedido>();
@@ -91,6 +117,19 @@ const itemsAgrupados = computed(() => {
 onMounted(async () => {
   loading.value = true;
   try {
+    if (esParaLlevar.value) {
+      const disponibilidadRes = await pedidosApi.getDisponibilidadParaLlevar();
+      if (!disponibilidadRes.data.data.disponible) {
+        toast.add({
+          severity: "warn",
+          summary: "Para llevar no disponible",
+          detail: "La mesa para llevar está inactiva",
+          life: 3000,
+        });
+        await router.replace("/caja");
+        return;
+      }
+    }
     const menuRes = await menuApi.getMenu();
     menu.value = menuRes.data.data;
     if (!esParaLlevar.value) {
@@ -123,14 +162,21 @@ function seleccionarProducto(producto: ProductoDTO) {
     });
     return;
   }
+  if (productoPendiente.value?.id !== producto.id) observacion.value = "";
   productoPendiente.value = producto;
-  cantidad.value = 1;
+  productoCategoriaId.value = categoriaActiva.value;
 }
 
 function seleccionarCategoria(categoriaId: number) {
   categoriaActiva.value = categoriaId;
-  productoPendiente.value = null;
-  cantidad.value = 1;
+  if (
+    productoPendiente.value &&
+    productoCategoriaId.value !== categoriaId
+  ) {
+    productoPendiente.value = null;
+    productoCategoriaId.value = null;
+    observacion.value = "";
+  }
 }
 
 async function agregarProducto() {
@@ -148,6 +194,16 @@ async function agregarProducto() {
     return;
   }
   const producto = productoPendiente.value;
+  const categoria = menu.value.find((item) => item.id === categoriaActiva.value);
+  if (!categoria) {
+    toast.add({
+      severity: "warn",
+      summary: "Categoría no válida",
+      detail: "Selecciona nuevamente la categoría del producto.",
+      life: 3000,
+    });
+    return;
+  }
   const observacionesLimpias = cleanText(observacion.value);
   const existente = itemsPendientes.value.find((item) => item.productoId === producto.id);
   if (existente) {
@@ -163,11 +219,15 @@ async function agregarProducto() {
       precio: Number(producto.precio),
       subtotal: Number(producto.precio) * Number(cantidad.value),
       observaciones: observacionesLimpias,
+      categoriaId: categoria.id,
+      categoriaNombre: categoria.nombre,
+      requiereCocina: !isColdDrinksCategory(categoria.nombre),
     });
   }
   observacion.value = "";
   cantidad.value = 1;
   productoPendiente.value = null;
+  productoCategoriaId.value = null;
   toast.add({
     severity: "success",
     summary: "Item agregado",
@@ -192,6 +252,11 @@ async function confirmarPedido() {
   pedidoMobileVisible.value = false;
   agregando.value = true;
   try {
+    const totalUnidades = sumItemQuantities(itemsPendientes.value);
+    const unidadesCocina = sumItemQuantities(
+      itemsPendientes.value.filter((item) => item.requiereCocina),
+    );
+    const unidadesDirectas = totalUnidades - unidadesCocina;
     if (!pedidoId.value && esParaLlevar.value) {
       const pedidoRes = await pedidosApi.crearParaLlevar();
       pedidoId.value = pedidoRes.data.data.id;
@@ -213,8 +278,8 @@ async function confirmarPedido() {
       severity: "success",
       summary: "Pedido confirmado",
       detail: esParaLlevar.value
-        ? `${enviados.length} item${enviados.length !== 1 ? "s" : ""} listo${enviados.length !== 1 ? "s" : ""} para cobrar en caja`
-        : `${enviados.length} item${enviados.length !== 1 ? "s" : ""} enviado${enviados.length !== 1 ? "s" : ""} a cocina`,
+        ? `${totalUnidades} unidad${totalUnidades !== 1 ? "es" : ""} lista${totalUnidades !== 1 ? "s" : ""} para cobrar en caja`
+        : kitchenDispatchMessage(unidadesCocina, unidadesDirectas),
       life: 2500,
     });
   } catch (e: unknown) {
@@ -497,13 +562,13 @@ function mergeObservaciones(actual: string, incoming: string) {
     <div class="dialog-copy">
       <p>
         <template v-if="esParaLlevar">
-          Se agregaran {{ itemsPendientes.length }} item{{ itemsPendientes.length !== 1 ? "s" : "" }} al pedido para cobrar en caja.
+          Se agregarán {{ unidadesPendientes }} unidad{{ unidadesPendientes !== 1 ? "es" : "" }} al pedido para cobrar en caja.
         </template>
         <template v-else>
-          Se enviaran {{ itemsPendientes.length }} item{{ itemsPendientes.length !== 1 ? "s" : "" }} a cocina.
+          {{ mensajeConfirmacionMesa }}.
         </template>
       </p>
-      <p>Total a enviar: <strong>S/ {{ totalPendiente.toFixed(2) }}</strong></p>
+      <p>Total a confirmar: <strong>S/ {{ totalPendiente.toFixed(2) }}</strong></p>
     </div>
 
     <template #footer>
@@ -531,7 +596,7 @@ function mergeObservaciones(actual: string, incoming: string) {
   >
     <div class="dialog-copy">
       <p>Hay items pendientes sin confirmar. Si sales, se descartaran.</p>
-      <p>Items pendientes: <strong>{{ itemsPendientes.length }}</strong></p>
+      <p>Unidades pendientes: <strong>{{ unidadesPendientes }}</strong></p>
     </div>
 
     <template #footer>

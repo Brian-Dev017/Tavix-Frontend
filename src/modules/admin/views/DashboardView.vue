@@ -2,7 +2,6 @@
 import { ref, computed, onMounted } from "vue";
 import { useRouter } from "vue-router";
 import { useToast } from "primevue/usetoast";
-import Toast from "primevue/toast";
 import Chart from "primevue/chart";
 import {
   reportesApi,
@@ -14,6 +13,12 @@ import { adminApi } from "@/modules/admin/api/adminApi";
 import { mesasApi } from "@/modules/mesas/api/mesasApi";
 import { useRealtime } from "@/shared/composables/useRealtime";
 import { onUnmounted } from "vue";
+import { getApiErrorMessage } from "@/shared/api/apiError";
+import { toLocalDateInput, validateDateRange } from "@/shared/utils/date";
+import {
+  downloadBlob,
+  filenameFromDisposition,
+} from "@/shared/utils/fileDownload";
 
 const router = useRouter();
 const toast = useToast();
@@ -21,14 +26,12 @@ const toast = useToast();
 const loading = ref(true);
 const enVivo = ref(false);
 const dashboard = ref<DashboardData | null>(null);
-const desde = ref(new Date().toISOString().slice(0, 10));
-const hasta = ref(new Date().toISOString().slice(0, 10));
+const maxDate = toLocalDateInput();
+const desde = ref(maxDate);
+const hasta = ref(maxDate);
 const mesasOcupadas = ref(0);
+const totalMesasFisicas = ref(0);
 const usuariosActivos = ref(0);
-const pedidosActivos = ref<
-  { mesaNumero: string; items: number; total: number; estado: string }[]
->([]);
-
 const today = computed(() =>
   new Date().toLocaleDateString("es-PE", {
     weekday: "long",
@@ -129,28 +132,78 @@ const donutChartOptions = {
 };
 
 async function cargar() {
+  const rangeError = validateDateRange(desde.value, hasta.value, maxDate);
+  if (rangeError) {
+    toast.add({
+      severity: "warn",
+      summary: "Revisa el rango",
+      detail: rangeError,
+      life: 3000,
+    });
+    return;
+  }
+
   loading.value = true;
   try {
-    const [resDash, resMesas, resUsuarios] = await Promise.all([
-      reportesApi.getDashboard(desde.value, hasta.value).catch(() => null),
+    const resDash = await reportesApi.getDashboard(desde.value, hasta.value);
+    const [resMesas, resUsuarios] = await Promise.all([
       mesasApi.listar().catch(() => null),
       adminApi.listarUsuarios().catch(() => null),
     ]);
-    dashboard.value = resDash?.data?.data ?? null;
+    dashboard.value = resDash.data.data;
     mesasOcupadas.value = (resMesas?.data?.data ?? []).filter(
       (m: { estado: string }) => m.estado === "OCUPADA",
     ).length;
+    totalMesasFisicas.value = (resMesas?.data?.data ?? []).length;
     usuariosActivos.value = (resUsuarios?.data?.data ?? []).filter(
       (u: { activo: boolean }) => u.activo,
     ).length;
-  } catch {
+  } catch (error) {
+    dashboard.value = null;
     toast.add({
       severity: "error",
       summary: "Error al cargar dashboard",
+      detail: getApiErrorMessage(
+        error,
+        "No se pudo cargar la información del dashboard.",
+      ),
       life: 3000,
     });
   } finally {
     loading.value = false;
+  }
+}
+
+async function exportarExcel() {
+  if (!dashboard.value) return;
+  try {
+    const response = await reportesApi.exportDashboardExcel(
+      desde.value,
+      hasta.value,
+    );
+    downloadBlob(
+      response.data,
+      filenameFromDisposition(
+        response.headers["content-disposition"],
+        `dashboard-${desde.value}-${hasta.value}.xlsx`,
+      ),
+    );
+    toast.add({
+      severity: "success",
+      summary: "Reporte exportado",
+      detail: "El dashboard se descargó con hojas, tablas y gráficos.",
+      life: 2500,
+    });
+  } catch (error) {
+    toast.add({
+      severity: "error",
+      summary: "No se pudo exportar el dashboard",
+      detail: getApiErrorMessage(
+        error,
+        "No se pudo generar el archivo Excel del dashboard.",
+      ),
+      life: 3000,
+    });
   }
 }
 
@@ -177,7 +230,6 @@ onUnmounted(() => {
 
 <template>
   <div class="dash-page">
-    <Toast />
 
     <!-- Header -->
     <div class="dash-header">
@@ -186,11 +238,19 @@ onUnmounted(() => {
         <p class="dash-sub">{{ today }}</p>
       </div>
       <div class="dash-header-right">
-        <input v-model="desde" type="date" class="dash-date" />
-        <input v-model="hasta" type="date" class="dash-date" />
-        <button class="dash-alert-btn" @click="cargar">
+        <input v-model="desde" type="date" class="dash-date" :max="maxDate" />
+        <input v-model="hasta" type="date" class="dash-date" :max="maxDate" />
+        <button class="dash-alert-btn" :disabled="loading" @click="cargar">
           <i class="pi pi-search"></i>
           <span>Consultar</span>
+        </button>
+        <button
+          class="dash-export-btn"
+          :disabled="loading || !dashboard"
+          @click="exportarExcel"
+        >
+          <i class="pi pi-download"></i>
+          <span>Exportar Excel</span>
         </button>
         <button class="dash-alert-btn" @click="router.push('/admin/stock')">
           <i class="pi pi-exclamation-triangle"></i>
@@ -231,7 +291,7 @@ onUnmounted(() => {
           <span class="stat-val">{{ mesasOcupadas }}</span>
           <span class="stat-lbl">Mesas ocupadas</span>
         </div>
-        <div class="stat-badge badge-amber">/ 10</div>
+        <div class="stat-badge badge-amber">/ {{ totalMesasFisicas }}</div>
       </div>
       <div class="stat-card">
         <div class="stat-icon si-indigo"><i class="pi pi-users"></i></div>
@@ -430,6 +490,34 @@ onUnmounted(() => {
   &:hover {
     background: rgba(217, 119, 6, 0.15);
   }
+  i {
+    font-size: 0.7rem;
+  }
+}
+
+.dash-export-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0.85rem;
+  border: 1px solid $border-medium;
+  background: $bg-card;
+  color: $text-primary;
+  border-radius: $r-full;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: $font-body;
+
+  &:hover:not(:disabled) {
+    background: $bg-hover;
+  }
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
+
   i {
     font-size: 0.7rem;
   }
@@ -781,6 +869,10 @@ onUnmounted(() => {
   .dash-charts,
   .dash-bottom {
     grid-template-columns: 1fr;
+  }
+  .dash-header-right {
+    width: 100%;
+    flex-wrap: wrap;
   }
 }
 </style>

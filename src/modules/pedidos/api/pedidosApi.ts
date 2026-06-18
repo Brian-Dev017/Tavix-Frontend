@@ -18,6 +18,9 @@ export const pedidosApi = {
   crearParaLlevar: () =>
     api.post<{ data: { id: number } }>('/api/pedidos/para-llevar'),
 
+  getDisponibilidadParaLlevar: () =>
+    api.get<{ data: { disponible: boolean } }>('/api/pedidos/para-llevar/disponibilidad'),
+
   agregarItem: (pedidoId: number, productoId: number, cantidad: number, observaciones: string) =>
     api.post<{ data: ItemPedido }>(`/api/pedidos/${pedidoId}/items`, {
       productoId,

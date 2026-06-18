@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from "vue";
 import { useToast } from "primevue/usetoast";
-import Toast from "primevue/toast";
 import Button from "primevue/button";
 import DatePicker from "primevue/datepicker";
 import Chart from "primevue/chart";
@@ -10,6 +9,12 @@ import {
   type ReporteVentas,
 } from "@/modules/admin/api/reportesApi";
 import { firstError } from "@/shared/validation/inputValidation";
+import { getApiErrorMessage } from "@/shared/api/apiError";
+import { toLocalDateInput, validateDateRange } from "@/shared/utils/date";
+import {
+  downloadBlob,
+  filenameFromDisposition,
+} from "@/shared/utils/fileDownload";
 
 const toast = useToast();
 
@@ -23,6 +28,8 @@ const desde = ref<Date>(
 const hasta = ref<Date>(new Date());
 const loading = ref(false);
 const reporte = ref<ReporteVentas | null>(null);
+const maxDate = new Date();
+const maxDateInput = toLocalDateInput(maxDate);
 
 function fmtDate(d: Date) {
   const y = d.getFullYear();
@@ -39,7 +46,13 @@ async function cargar() {
   const validationError = firstError([
     !(desde.value instanceof Date) && "Fecha desde no es válida",
     !(hasta.value instanceof Date) && "Fecha hasta no es válida",
-    desde.value > hasta.value && "Fecha desde no puede ser mayor que fecha hasta",
+    desde.value instanceof Date &&
+      hasta.value instanceof Date &&
+      validateDateRange(
+        fmtDate(desde.value),
+        fmtDate(hasta.value),
+        maxDateInput,
+      ),
   ]);
   if (validationError) {
     toast.add({
@@ -57,10 +70,15 @@ async function cargar() {
       fmtDate(hasta.value),
     );
     reporte.value = res.data.data;
-  } catch {
+  } catch (error) {
+    reporte.value = null;
     toast.add({
       severity: "error",
       summary: "Error al cargar ventas",
+      detail: getApiErrorMessage(
+        error,
+        "No se pudo cargar el reporte de ventas.",
+      ),
       life: 3000,
     });
   } finally {
@@ -68,20 +86,36 @@ async function cargar() {
   }
 }
 
-function exportarCsv() {
+async function exportarExcel() {
   if (!reporte.value) return;
-  const rows = [
-    ["Fecha", "Comprobantes", "Total"],
-    ...reporte.value.ventasPorDia.map((d) => [d.fecha, String(d.cantidad), String(d.total)]),
-  ];
-  const csv = rows.map((row) => row.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = `ventas-${fmtDate(desde.value)}-${fmtDate(hasta.value)}.csv`;
-  link.click();
-  URL.revokeObjectURL(url);
+  try {
+    const from = fmtDate(desde.value);
+    const to = fmtDate(hasta.value);
+    const response = await reportesApi.exportVentasExcel(from, to);
+    downloadBlob(
+      response.data,
+      filenameFromDisposition(
+        response.headers["content-disposition"],
+        `ventas-${from}-${to}.xlsx`,
+      ),
+    );
+    toast.add({
+      severity: "success",
+      summary: "Reporte exportado",
+      detail: "Las ventas se descargaron con hojas, tablas y gráficos.",
+      life: 2500,
+    });
+  } catch (error) {
+    toast.add({
+      severity: "error",
+      summary: "No se pudo exportar ventas",
+      detail: getApiErrorMessage(
+        error,
+        "No se pudo generar el archivo Excel de ventas.",
+      ),
+      life: 3000,
+    });
+  }
 }
 
 const barData = computed(() => {
@@ -150,7 +184,6 @@ onMounted(cargar);
 
 <template>
   <div class="section-page">
-    <Toast />
 
     <div class="section-header">
       <div>
@@ -165,12 +198,14 @@ onMounted(cargar);
           dateFormat="yy-mm-dd"
           placeholder="Desde"
           :showIcon="true"
+          :maxDate="maxDate"
         />
         <DatePicker
           v-model="hasta"
           dateFormat="yy-mm-dd"
           placeholder="Hasta"
           :showIcon="true"
+          :maxDate="maxDate"
         />
         <Button
           label="Consultar"
@@ -180,12 +215,12 @@ onMounted(cargar);
           @click="cargar"
         />
         <Button
-          label="Exportar"
+          label="Exportar Excel"
           icon="pi pi-download"
           size="small"
           severity="secondary"
           :disabled="!reporte"
-          @click="exportarCsv"
+          @click="exportarExcel"
         />
       </div>
     </div>

@@ -24,6 +24,8 @@ import {
   money,
   nameText,
 } from "@/shared/validation/inputValidation";
+import { moneyInputProps } from "@/shared/forms/moneyInput";
+import { getApiErrorMessage } from "@/shared/api/apiError";
 
 interface CategoriaOpcion {
   id: number;
@@ -44,15 +46,19 @@ const esEdicion = ref(false);
 const saving = ref(false);
 const editId = ref(0);
 
-const formVacio = (): GuardarProductoRequest => ({
+type ProductoForm = Omit<GuardarProductoRequest, "precio"> & {
+  precio: number | null;
+};
+
+const formVacio = (): ProductoForm => ({
   categoriaId: 0,
   nombre: "",
   descripcion: "",
-  precio: 0,
+  precio: null,
   imagenUrl: "",
   disponible: true,
 });
-const form = ref<GuardarProductoRequest>(formVacio());
+const form = ref<ProductoForm>(formVacio());
 
 function abrirCrear() {
   form.value = formVacio();
@@ -84,6 +90,7 @@ function abrirEditar(p: ProductoAdmin) {
 }
 
 async function guardar() {
+  const precio = Number(form.value.precio);
   const categoriaExiste = props.categorias.some(
     (c) => c.id === form.value.categoriaId,
   );
@@ -91,7 +98,7 @@ async function guardar() {
     nameText(form.value.nombre, "Nombre"),
     !categoriaExiste && "Selecciona una categoría válida",
     money(form.value.precio, "Precio"),
-    Number(form.value.precio) <= 0 && "Precio debe ser mayor a 0",
+    precio <= 0 && "Precio debe ser mayor a 0",
     maxLength(form.value.descripcion, "Descripción", 250),
     httpUrl(form.value.imagenUrl, "URL de imagen"),
   ]);
@@ -104,14 +111,14 @@ async function guardar() {
     });
     return;
   }
-  form.value = {
+  const payload: GuardarProductoRequest = {
     ...form.value,
     nombre: cleanText(form.value.nombre),
     descripcion: cleanText(form.value.descripcion),
     imagenUrl: cleanText(form.value.imagenUrl),
-    precio: Number(form.value.precio),
+    precio,
   };
-  if (!form.value.nombre || !form.value.categoriaId || !form.value.precio) {
+  if (!payload.nombre || !payload.categoriaId || !payload.precio) {
     toast.add({
       severity: "warn",
       summary: "Campos requeridos",
@@ -123,9 +130,9 @@ async function guardar() {
   saving.value = true;
   try {
     if (esEdicion.value) {
-      await adminApi.actualizarProducto(editId.value, form.value);
+      await adminApi.actualizarProducto(editId.value, payload);
     } else {
-      await adminApi.crearProducto(form.value);
+      await adminApi.crearProducto(payload);
     }
     toast.add({
       severity: "success",
@@ -136,11 +143,13 @@ async function guardar() {
     dialogVisible.value = false;
     emit("reload");
   } catch (e: unknown) {
-    const err = e as { response?: { data?: { message?: string } } };
     toast.add({
       severity: "error",
-      summary: "Error",
-      detail: err.response?.data?.message ?? "No se pudo guardar",
+      summary: "No se pudo guardar el producto",
+      detail: getApiErrorMessage(
+        e,
+        "Revisa los datos ingresados e intenta nuevamente.",
+      ),
       life: 3000,
     });
   } finally {
@@ -153,11 +162,14 @@ async function toggleDisponible(p: ProductoAdmin) {
   try {
     await adminApi.toggleDisponibilidad(p.id);
     emit("reload");
-  } catch {
+  } catch (error) {
     toast.add({
       severity: "error",
-      summary: "Error",
-      detail: "No se pudo actualizar",
+      summary: "No se pudo cambiar la disponibilidad",
+      detail: getApiErrorMessage(
+        error,
+        "El estado del producto no pudo actualizarse.",
+      ),
       life: 3000,
     });
   }
@@ -176,10 +188,14 @@ function confirmarEliminar(p: ProductoAdmin) {
         await adminApi.eliminarProducto(p.id);
         toast.add({ severity: "success", summary: "Eliminado", life: 2500 });
         emit("reload");
-      } catch {
+      } catch (error: unknown) {
         toast.add({
           severity: "error",
-          summary: "Error al eliminar",
+          summary: "No se pudo eliminar el producto",
+          detail: getApiErrorMessage(
+            error,
+            "El producto no pudo eliminarse permanentemente.",
+          ),
           life: 3000,
         });
       }
@@ -323,25 +339,19 @@ const formatPrecio = (v: number) =>
           <Textarea v-model="form.descripcion" rows="2" fluid />
         </div>
         <div class="form-field">
-          <label>Precio (S/)</label>
+          <label>Precio en Soles (Ejemplo 20.50)</label>
           <InputNumber
             v-model="form.precio"
-            :min="0"
-            :minFractionDigits="2"
-            :maxFractionDigits="2"
+            v-bind="moneyInputProps"
+            :min="0.01"
+            :allowEmpty="true"
+            placeholder="20.50"
             fluid
           />
         </div>
         <div class="form-field">
           <label>URL de imagen</label>
           <InputText v-model="form.imagenUrl" fluid placeholder="https://..." />
-        </div>
-        <div class="form-field">
-          <label>Disponible</label>
-          <div class="estado-cell">
-            <ToggleSwitch v-model="form.disponible" />
-            <span>{{ form.disponible ? "Sí" : "No" }}</span>
-          </div>
         </div>
       </div>
       <template #footer>

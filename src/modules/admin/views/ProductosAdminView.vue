@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from "vue";
 import { useToast } from "primevue/usetoast";
-import Toast from "primevue/toast";
 import {
   adminApi,
   type ProductoAdmin,
@@ -55,7 +54,6 @@ onMounted(cargar);
 
 <template>
   <div class="section-page">
-    <Toast />
 
     <div class="section-header">
       <div>

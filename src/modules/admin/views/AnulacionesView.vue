@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { ref } from "vue";
 import { useToast } from "primevue/usetoast";
-import Toast from "primevue/toast";
 import Button from "primevue/button";
 import InputText from "primevue/inputtext";
 import Dialog from "primevue/dialog";
@@ -10,8 +9,13 @@ import { authApi } from "@/modules/auth/api/authApi";
 import { useAuthStore, normalizeAuthRole } from "@/modules/auth/store/authStore";
 import { decodeJwtPayload } from "@/shared/auth/jwt";
 import { reportesApi } from "@/modules/admin/api/reportesApi";
-import { loadComprobantePdfData, openComprobantePdf, saveComprobantePdfData } from "@/shared/utils/comprobantePdf";
+import {
+  downloadComprobantePdf,
+  openComprobantePdf,
+  toPdfComprobanteData,
+} from "@/shared/utils/comprobantePdf";
 import { onlyDigits, password, required, username } from "@/shared/validation/inputValidation";
+import { getApiErrorMessage } from "@/shared/api/apiError";
 
 const toast = useToast();
 const auth = useAuthStore();
@@ -36,8 +40,16 @@ async function buscar() {
   searched.value = true;
   try {
     items.value = (await adminApi.buscarComprobantesEmitidos(numero)).data.data;
-  } catch {
-    toast.add({ severity: "error", summary: "Error al cargar comprobantes", life: 3000 });
+  } catch (error) {
+    toast.add({
+      severity: "error",
+      summary: "Error al cargar comprobantes",
+      detail: getApiErrorMessage(
+        error,
+        "No se pudieron cargar los comprobantes.",
+      ),
+      life: 3000,
+    });
   } finally {
     loading.value = false;
   }
@@ -80,56 +92,60 @@ async function anular() {
     credDialog.value = false;
     toast.add({ severity: "success", summary: "Comprobante anulado", life: 2500 });
     await buscar();
-  } catch (e: unknown) {
-    const err = e as { response?: { data?: { message?: string } }; message?: string };
-    toast.add({ severity: "error", summary: "Error al anular", detail: err.response?.data?.message ?? err.message, life: 3000 });
+  } catch (error) {
+    toast.add({
+      severity: "error",
+      summary: "Error al anular",
+      detail: getApiErrorMessage(
+        error,
+        "No se pudo anular el comprobante.",
+      ),
+      life: 3000,
+    });
   } finally {
     anulando.value = false;
   }
 }
 
-async function verPdf(item: ComprobanteEmitidoAdmin) {
-  const guardado = loadComprobantePdfData(item.id);
-  if (guardado) {
-    openComprobantePdf(guardado);
-    return;
-  }
+async function obtenerPdf(id: number) {
+  const detalle = (await reportesApi.getHistorialDetalle(id)).data.data;
+  return toPdfComprobanteData(detalle);
+}
 
+async function verPdf(item: ComprobanteEmitidoAdmin) {
   try {
-    const detalle = (await reportesApi.getHistorialDetalle(item.id)).data.data;
-    const pdfData = {
-      comprobanteId: detalle.comprobanteId,
-      pedidoId: detalle.pedidoId,
-      tipoComprobante: detalle.tipoComprobante,
-      serie: detalle.serie,
-      numero: detalle.numero,
-      metodoPago: detalle.metodoPago,
-      subtotal: detalle.subtotal,
-      igv: detalle.igv,
-      descuento: detalle.descuento,
-      total: detalle.total,
-      efectivoRecibido: detalle.efectivoRecibido,
-      vuelto: detalle.vuelto,
-      pagadoEn: detalle.pagadoEn,
-      clienteDocumento: detalle.clienteDocumento ?? "",
-      clienteNombre: detalle.clienteNombre ?? "",
-      clienteDireccion: detalle.clienteDireccion ?? "",
-      negocioNombre: detalle.negocioNombre ?? "",
-      negocioRuc: detalle.negocioRuc ?? "",
-      negocioDireccion: detalle.negocioDireccion ?? "",
-      negocioLogoUrl: detalle.negocioLogoUrl ?? "",
-      items: detalle.items.map((row) => ({
-        producto: row.producto,
-        cantidad: row.cantidad,
-        precio: row.precio,
-        subtotal: row.subtotal,
-        observaciones: row.observaciones,
-      })),
-    };
-    saveComprobantePdfData(pdfData);
-    openComprobantePdf(pdfData);
-  } catch {
-    toast.add({ severity: "error", summary: "PDF no disponible", detail: "No se pudo generar la vista previa del comprobante", life: 3000 });
+    openComprobantePdf(await obtenerPdf(item.id));
+  } catch (error) {
+    toast.add({
+      severity: "error",
+      summary: "PDF no disponible",
+      detail: getApiErrorMessage(
+        error,
+        "No se pudo generar la vista previa del comprobante.",
+      ),
+      life: 3000,
+    });
+  }
+}
+
+async function descargarPdf(item: ComprobanteEmitidoAdmin) {
+  try {
+    downloadComprobantePdf(await obtenerPdf(item.id));
+    toast.add({
+      severity: "success",
+      summary: "PDF descargado",
+      life: 2500,
+    });
+  } catch (error) {
+    toast.add({
+      severity: "error",
+      summary: "PDF no disponible",
+      detail: getApiErrorMessage(
+        error,
+        "No se pudo descargar el comprobante.",
+      ),
+      life: 3000,
+    });
   }
 }
 
@@ -140,7 +156,6 @@ function fmtSol(n: number) {
 
 <template>
   <div class="section-page">
-    <Toast />
     <div class="section-header">
       <div>
         <h1 class="section-title"><i class="pi pi-times-circle"></i> Anulaciones</h1>
@@ -180,10 +195,37 @@ function fmtSol(n: number) {
             <td>{{ c.metodoPago }}</td>
             <td class="mono">{{ fmtSol(c.total) }}</td>
             <td>
-              <Button icon="pi pi-file-pdf" text rounded size="small" @click="verPdf(c)" />
+              <div class="pdf-actions">
+                <Button
+                  icon="pi pi-eye"
+                  text
+                  rounded
+                  size="small"
+                  v-tooltip.top="'Ver PDF'"
+                  @click="verPdf(c)"
+                />
+                <Button
+                  icon="pi pi-download"
+                  text
+                  rounded
+                  size="small"
+                  v-tooltip.top="'Descargar PDF'"
+                  @click="descargarPdf(c)"
+                />
+              </div>
             </td>
             <td><InputText v-model="motivo[c.id]" placeholder="Motivo de anulacion" fluid /></td>
-            <td><Button label="Anular" icon="pi pi-check" severity="danger" size="small" @click="solicitarAnulacion(c)" /></td>
+            <td>
+              <Button
+                label="Anular"
+                icon="pi pi-check"
+                severity="danger"
+                size="small"
+                :disabled="c.estado !== 'COMPLETADO'"
+                v-tooltip.top="c.estado !== 'COMPLETADO' ? `Estado no permitido: ${c.estado}` : 'Anular comprobante'"
+                @click="solicitarAnulacion(c)"
+              />
+            </td>
           </tr>
         </tbody>
       </table>
@@ -223,6 +265,7 @@ function fmtSol(n: number) {
 .data-table th { background: $bg-surface; padding: 0.6rem 0.9rem; text-align: left; font-size: 0.68rem; color: $text-muted; text-transform: uppercase; }
 .data-table td { padding: 0.6rem 0.9rem; border-top: 1px solid $border-subtle; color: $text-primary; }
 .mono { font-family: $font-mono; font-weight: 700; }
+.pdf-actions { display: flex; align-items: center; }
 .empty-cell { text-align: center; color: $text-dim; padding: 2rem !important; }
 .dialog-body { display: flex; flex-direction: column; gap: 0.85rem; }
 .dialog-copy { margin: 0; color: $text-muted; font-size: 0.8rem; line-height: 1.45; }

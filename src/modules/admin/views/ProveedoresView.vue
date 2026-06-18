@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted } from "vue";
 import { useToast } from "primevue/usetoast";
-import Toast from "primevue/toast";
 import Dialog from "primevue/dialog";
 import InputText from "primevue/inputtext";
 import InputNumber from "primevue/inputnumber";
@@ -139,7 +138,6 @@ onMounted(cargar);
 
 <template>
   <div class="section-page">
-    <Toast />
     <div class="section-header">
       <div>
         <h1 class="section-title"><i class="pi pi-truck"></i> Proveedores</h1>

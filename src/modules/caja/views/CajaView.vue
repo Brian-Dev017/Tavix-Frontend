@@ -9,7 +9,10 @@ import { reportesApi, type Arqueo } from "@/modules/admin/api/reportesApi";
 import { configuracionApi, type NegocioConfig } from "@/modules/admin/api/configuracionApi";
 import { authApi } from "@/modules/auth/api/authApi";
 import { useAuthStore, normalizeAuthRole } from "@/modules/auth/store/authStore";
+import { pedidosApi } from "@/modules/pedidos/api/pedidosApi";
 import { decodeJwtPayload } from "@/shared/auth/jwt";
+import { useRealtime } from "@/shared/composables/useRealtime";
+import { moneyInputProps } from "@/shared/forms/moneyInput";
 import {
   downloadComprobantePdf,
   saveComprobantePdfData,
@@ -19,12 +22,14 @@ import Button from "primevue/button";
 import Dialog from "primevue/dialog";
 import InputText from "primevue/inputtext";
 import InputNumber from "primevue/inputnumber";
+import type { InputNumberInputEvent } from "primevue/inputnumber";
 import Select from "primevue/select";
 import {
   cleanText,
   dni,
   firstError,
   maxLength,
+  money,
   nameText,
   personNameText,
   numberRange,
@@ -51,6 +56,8 @@ const guardandoPrecierre = ref(false);
 const validandoPrecierre = ref(false);
 const arqueoActivo = ref<Arqueo | null>(null);
 const negocio = ref<NegocioConfig | null>(null);
+const mesaParaLlevarDisponible = ref(false);
+const mesaParaLlevarVerificada = ref(false);
 const MESA_LIBERADA_EVENT = "mesa-liberada";
 
 const pedidoSeleccionado = ref<PedidoResumen | null>(null);
@@ -78,6 +85,10 @@ const precierreForm = ref({
 });
 let refresco: ReturnType<typeof setInterval> | null = null;
 let refrescoCaja: ReturnType<typeof setInterval> | null = null;
+let realtimeReloadTimer: ReturnType<typeof setTimeout> | null = null;
+const pedidosRefreshing = ref(false);
+const arqueoRefreshing = ref(false);
+const mesaParaLlevarRefreshing = ref(false);
 
 const tiposComprobante = [
   { label: "Ticket", value: "T" },
@@ -141,12 +152,21 @@ const cajaBloqueadaPorOtroUsuario = computed(
   () => cajaActiva.value && arqueoActivo.value?.cajeroId !== auth.userId,
 );
 
+const takeoutActionTitle = computed(() => {
+  if (!cajaActivaDelUsuario.value) return "Abre tu caja para crear pedidos";
+  if (!mesaParaLlevarVerificada.value) return "Verificando mesa para llevar";
+  if (!mesaParaLlevarDisponible.value) return "Pedido para llevar no disponible";
+  return "Crear pedido para llevar";
+});
+
 const nombreCajaActiva = computed(() => arqueoActivo.value?.nombreCajero ?? "otro cajero");
 const montoPrecierreRegistrado = computed(() =>
   cajaActiva.value ? Number(arqueoActivo.value?.montoCierre ?? 0) : 0,
 );
 
 async function cargarPedidos(silent = false) {
+  if (pedidosRefreshing.value) return;
+  pedidosRefreshing.value = true;
   if (!silent) loading.value = true;
   try {
     const res = await cajaApi.getPedidosActivos();
@@ -166,10 +186,13 @@ async function cargarPedidos(silent = false) {
     }
   } finally {
     loading.value = false;
+    pedidosRefreshing.value = false;
   }
 }
 
 async function cargarArqueoActivo(silent = false) {
+  if (arqueoRefreshing.value) return;
+  arqueoRefreshing.value = true;
   try {
     const res = await reportesApi.getActivo();
     arqueoActivo.value = res.data.data;
@@ -183,12 +206,56 @@ async function cargarArqueoActivo(silent = false) {
         life: 2500,
       });
     }
+  } finally {
+    arqueoRefreshing.value = false;
+  }
+}
+
+async function cargarEstadoMesaParaLlevar(silent = false) {
+  if (mesaParaLlevarRefreshing.value) return;
+  mesaParaLlevarRefreshing.value = true;
+  try {
+    const res = await pedidosApi.getDisponibilidadParaLlevar();
+    mesaParaLlevarDisponible.value = res.data.data.disponible;
+  } catch {
+    mesaParaLlevarDisponible.value = false;
+    if (!silent) {
+      toast.add({
+        severity: "warn",
+        summary: "Para llevar no disponible",
+        detail: "No se pudo verificar el estado de la mesa para llevar",
+        life: 3000,
+      });
+    }
+  } finally {
+    mesaParaLlevarVerificada.value = true;
+    mesaParaLlevarRefreshing.value = false;
   }
 }
 
 async function recargarTodo() {
-  await Promise.allSettled([cargarPedidos(), cargarArqueoActivo(true)]);
+  await Promise.allSettled([
+    cargarPedidos(),
+    cargarArqueoActivo(true),
+    cargarEstadoMesaParaLlevar(true),
+  ]);
 }
+
+function recargarRealtime() {
+  if (realtimeReloadTimer) clearTimeout(realtimeReloadTimer);
+  realtimeReloadTimer = setTimeout(() => {
+    void Promise.allSettled([
+      cargarPedidos(true),
+      cargarArqueoActivo(true),
+      cargarEstadoMesaParaLlevar(true),
+    ]);
+  }, 250);
+}
+
+const { connect } = useRealtime({
+  "/topic/pedidos": recargarRealtime,
+  "/topic/ventas": recargarRealtime,
+});
 
 function keepDigits(value: string, max: number) {
   return onlyDigits(value).slice(0, max);
@@ -208,6 +275,10 @@ function handleNombreInput(value: string | null | undefined) {
 
 function handleApellidoInput(value: string | null | undefined) {
   apellidoCliente.value = keepLetters(String(value ?? ""));
+}
+
+function handleEfectivoInput(event: InputNumberInputEvent) {
+  efectivoRecibido.value = Number(event.value ?? 0);
 }
 
 async function cargarNegocio() {
@@ -269,10 +340,11 @@ async function cobrar() {
     tipoComprobante.value === "F" && nameText(razonSocial.value, "Razon social"),
     tipoComprobante.value === "F" && required(direccion.value, "Direccion"),
     !required(direccion.value, "Direccion") && maxLength(direccion.value, "Direccion", 160),
+    money(descuento.value, "Descuento"),
     numberRange(descuento.value, "Descuento", 0, pedidoSeleccionado.value.totalConIgv),
     Number(descuento.value || 0) > 0 && required(motivoDescuento.value, "Motivo de descuento"),
     maxLength(motivoDescuento.value, "Motivo de descuento", 160),
-    metodoPago.value === "EFECTIVO" && numberRange(efectivoRecibido.value, "Efectivo recibido", 0, 999999),
+    metodoPago.value === "EFECTIVO" && money(efectivoRecibido.value, "Efectivo recibido"),
     metodoPago.value === "EFECTIVO" && !cubreTotalRedondeado(Number(efectivoRecibido.value || 0), totalCobro.value) &&
       "El efectivo recibido no cubre el total redondeado",
   ]);
@@ -338,7 +410,7 @@ async function cobrar() {
         cantidad: item.cantidad,
         precio: item.precio,
         subtotal: item.subtotal,
-        observaciones: item.observaciones,
+        observaciones: null,
       })),
     };
     let pdfDescargado = false;
@@ -400,6 +472,15 @@ function formatFecha(iso: string | null | undefined) {
 }
 
 function abrirDialogoCaja() {
+  if (isAdmin.value) {
+    toast.add({
+      severity: "error",
+      summary: "Apertura no permitida",
+      detail: "El administrador no puede abrir caja",
+      life: 3000,
+    });
+    return;
+  }
   aperturaForm.value = {
     usuario: "",
     contrasena: "",
@@ -410,6 +491,15 @@ function abrirDialogoCaja() {
 }
 
 function abrirDialogoPrecierre() {
+  if (pedidos.value.length > 0) {
+    toast.add({
+      severity: "warn",
+      summary: "Pre-cierre no disponible",
+      detail: `No puedes registrar el pre-cierre: existen ${pedidos.value.length} pagos pendientes.`,
+      life: 3500,
+    });
+    return;
+  }
   precierreForm.value = {
     usuario: "",
     contrasena: "",
@@ -432,7 +522,7 @@ async function aperturarCaja() {
   const validationError = firstError([
     username(aperturaForm.value.usuario),
     password(aperturaForm.value.contrasena),
-    numberRange(aperturaForm.value.montoApertura, "Monto de apertura", 0, 999999),
+    money(aperturaForm.value.montoApertura, "Monto de apertura"),
     maxLength(aperturaForm.value.notas, "Notas", 180),
   ]);
   if (validationError) {
@@ -490,7 +580,7 @@ async function registrarPrecierre() {
   const validationError = firstError([
     username(precierreForm.value.usuario),
     password(precierreForm.value.contrasena),
-    numberRange(precierreForm.value.montoEfectivo, "Monto en efectivo", 0, 999999),
+    money(precierreForm.value.montoEfectivo, "Monto en efectivo"),
     maxLength(precierreForm.value.notas, "Notas", 180),
   ]);
   if (validationError) {
@@ -536,14 +626,22 @@ async function registrarPrecierre() {
 onMounted(() => {
   cargarPedidos();
   cargarArqueoActivo(true);
+  cargarEstadoMesaParaLlevar();
   cargarNegocio();
+  connect();
   refresco = setInterval(() => cargarPedidos(true), 10000);
-  refrescoCaja = setInterval(() => cargarArqueoActivo(true), 10000);
+  refrescoCaja = setInterval(() => {
+    void Promise.allSettled([
+      cargarArqueoActivo(true),
+      cargarEstadoMesaParaLlevar(true),
+    ]);
+  }, 10000);
 });
 
 onUnmounted(() => {
   if (refresco) clearInterval(refresco);
   if (refrescoCaja) clearInterval(refrescoCaja);
+  if (realtimeReloadTimer) clearTimeout(realtimeReloadTimer);
 });
 </script>
 
@@ -613,14 +711,18 @@ onUnmounted(() => {
         <div class="col-header-bar">
           <span class="col-title">Pedidos activos</span>
           <div class="col-header-actions">
-            <Button
-              label="Para llevar"
-              icon="pi pi-shopping-bag"
-              size="small"
-              severity="success"
-              :disabled="!cajaActivaDelUsuario"
+            <button
+              class="takeout-action"
+              :disabled="!cajaActivaDelUsuario || !mesaParaLlevarDisponible"
+              :title="takeoutActionTitle"
               @click="router.push('/pedido-para-llevar')"
-            />
+            >
+              <span class="takeout-action__icon" aria-hidden="true">
+                <i class="pi pi-shopping-bag"></i>
+              </span>
+              <span class="takeout-action__label">Para llevar</span>
+              <i class="pi pi-arrow-right takeout-action__arrow" aria-hidden="true"></i>
+            </button>
             <span class="col-badge">{{ pedidos.length }}</span>
           </div>
         </div>
@@ -804,9 +906,9 @@ onUnmounted(() => {
             <label>Efectivo recibido</label>
             <InputNumber
               v-model="efectivoRecibido"
+              v-bind="moneyInputProps"
               :min="0"
-              :minFractionDigits="2"
-              :maxFractionDigits="2"
+              @input="handleEfectivoInput"
               fluid
             />
             <small class="cash-change">Total a cobrar: {{ fmt(totalCobro) }} · Vuelto: {{ fmt(vuelto) }}</small>
@@ -816,10 +918,9 @@ onUnmounted(() => {
             <label>Descuento</label>
             <InputNumber
               v-model="descuento"
+              v-bind="moneyInputProps"
               :min="0"
               :max="pedidoSeleccionado.totalConIgv"
-              :minFractionDigits="2"
-              :maxFractionDigits="2"
               fluid
             />
           </div>
@@ -926,9 +1027,8 @@ onUnmounted(() => {
           <label>Monto de apertura</label>
           <InputNumber
             v-model="aperturaForm.montoApertura"
+            v-bind="moneyInputProps"
             :min="0"
-            :minFractionDigits="2"
-            :maxFractionDigits="2"
             fluid
           />
         </div>
@@ -994,9 +1094,8 @@ onUnmounted(() => {
           <label>Efectivo contado</label>
           <InputNumber
             v-model="precierreForm.montoEfectivo"
+            v-bind="moneyInputProps"
             :min="0"
-            :minFractionDigits="2"
-            :maxFractionDigits="2"
             fluid
           />
         </div>

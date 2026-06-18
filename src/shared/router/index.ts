@@ -99,8 +99,9 @@ function getRolDefaultRoute(rol?: string): string {
   }
 }
 
-router.beforeEach((to, _from, next) => {
+router.beforeEach(async (to, _from, next) => {
   const auth = useAuthStore()
+  await auth.bootstrapSession()
 
   if (to.meta.requiresGuest && auth.isAuthenticated) {
     // Si hay token pero rol inválido/undefined → limpiar y mostrar login

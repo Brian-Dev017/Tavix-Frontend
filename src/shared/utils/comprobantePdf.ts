@@ -1,3 +1,5 @@
+import { downloadBlob } from "@/shared/utils/reportExport";
+
 export interface PdfComprobanteItem {
   producto: string;
   cantidad: number;
@@ -28,6 +30,36 @@ export interface PdfComprobanteData {
   clienteDocumento?: string;
   clienteDireccion?: string;
   items: PdfComprobanteItem[];
+}
+
+export interface ComprobantePdfSource {
+  comprobanteId: number;
+  pedidoId: number;
+  tipoComprobante: string;
+  serie: string;
+  numero: number;
+  metodoPago: string;
+  subtotal: number;
+  igv: number;
+  descuento?: number | null;
+  total: number;
+  efectivoRecibido?: number | null;
+  vuelto?: number | null;
+  pagadoEn?: string | null;
+  clienteDocumento?: string | null;
+  clienteNombre?: string | null;
+  clienteDireccion?: string | null;
+  negocioNombre?: string | null;
+  negocioRuc?: string | null;
+  negocioDireccion?: string | null;
+  negocioLogoUrl?: string | null;
+  items: Array<{
+    producto: string;
+    cantidad: number;
+    precio: number;
+    subtotal: number;
+    observaciones?: string | null;
+  }>;
 }
 
 const STORAGE_PREFIX = "comprobante_pdf_data:";
@@ -122,11 +154,6 @@ function addItems(lines: string[], data: PdfComprobanteData) {
   for (const item of data.items) {
     for (const line of wrapText(item.producto)) lines.push(line);
     lines.push(rightLine(`${item.cantidad} x ${fmtMoney(item.precio)}`, fmtMoney(item.subtotal)));
-    if (item.observaciones) {
-      for (const line of wrapText(`Obs: ${item.observaciones}`, RECEIPT_CHARS - 2)) {
-        lines.push(`  ${line}`);
-      }
-    }
     lines.push(separator("-"));
   }
 }
@@ -142,7 +169,6 @@ function buildTicketLines(data: PdfComprobanteData): string[] {
   lines.push(centerLine("Cliente: Mostrador"));
   lines.push("");
   lines.push(centerLine("-".repeat(24)));
-  lines.push(centerLine("Impresora termica 80mm"));
   addItems(lines, data);
   lines.push(centerLine("-".repeat(24)));
   lines.push(rightLine("Total", fmtMoney(data.total)));
@@ -199,7 +225,7 @@ function buildBoletaFacturaLines(data: PdfComprobanteData): string[] {
   return lines;
 }
 
-function buildLines(data: PdfComprobanteData): string[] {
+export function buildComprobanteLines(data: PdfComprobanteData): string[] {
   return esTicket(data) ? buildTicketLines(data) : buildBoletaFacturaLines(data);
 }
 
@@ -213,7 +239,7 @@ function createPdfBlob(data: PdfComprobanteData): Blob {
   const topMargin = 20;
   const bottomMargin = 28;
   const lineHeight = 10.5;
-  const lines = buildLines(data);
+  const lines = buildComprobanteLines(data);
   const pageHeight = Math.max(420, topMargin + bottomMargin + lines.length * lineHeight);
   const startY = pageHeight - topMargin;
   const content: string[] = ["BT", "/F1 8.5 Tf"];
@@ -258,15 +284,38 @@ function createPdfBlob(data: PdfComprobanteData): Blob {
   return new Blob([pdf], { type: "application/pdf" });
 }
 
-function triggerDownload(blob: Blob, fileName: string) {
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement("a");
-  anchor.href = url;
-  anchor.download = fileName;
-  document.body.appendChild(anchor);
-  anchor.click();
-  anchor.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
+export function toPdfComprobanteData(
+  source: ComprobantePdfSource,
+): PdfComprobanteData {
+  return {
+    comprobanteId: source.comprobanteId,
+    pedidoId: source.pedidoId,
+    tipoComprobante: source.tipoComprobante,
+    serie: source.serie,
+    numero: source.numero,
+    metodoPago: source.metodoPago,
+    subtotal: source.subtotal,
+    igv: source.igv,
+    descuento: source.descuento ?? 0,
+    total: source.total,
+    efectivoRecibido: source.efectivoRecibido ?? null,
+    vuelto: source.vuelto ?? null,
+    pagadoEn: source.pagadoEn ?? null,
+    clienteDocumento: source.clienteDocumento ?? "",
+    clienteNombre: source.clienteNombre ?? "",
+    clienteDireccion: source.clienteDireccion ?? "",
+    negocioNombre: source.negocioNombre ?? "",
+    negocioRuc: source.negocioRuc ?? "",
+    negocioDireccion: source.negocioDireccion ?? "",
+    negocioLogoUrl: source.negocioLogoUrl ?? "",
+    items: source.items.map((item) => ({
+      producto: item.producto,
+      cantidad: item.cantidad,
+      precio: item.precio,
+      subtotal: item.subtotal,
+      observaciones: item.observaciones ?? null,
+    })),
+  };
 }
 
 export function saveComprobantePdfData(data: PdfComprobanteData) {
@@ -284,7 +333,7 @@ export function loadComprobantePdfData(comprobanteId: number): PdfComprobanteDat
 }
 
 export function downloadComprobantePdf(data: PdfComprobanteData) {
-  triggerDownload(
+  downloadBlob(
     createPdfBlob(data),
     `comprobante-${data.serie}-${String(data.numero).padStart(8, "0")}.pdf`,
   );

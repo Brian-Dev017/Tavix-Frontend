@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted } from "vue";
 import { useToast } from "primevue/usetoast";
-import Toast from "primevue/toast";
 import Dialog from "primevue/dialog";
 import InputNumber from "primevue/inputnumber";
 import InputText from "primevue/inputtext";
@@ -13,6 +12,9 @@ import {
   maxLength,
   money,
 } from "@/shared/validation/inputValidation";
+import { getApiErrorMessage } from "@/shared/api/apiError";
+import { moneyInputProps } from "@/shared/forms/moneyInput";
+import { downloadCsv } from "@/shared/utils/reportExport";
 
 const toast = useToast();
 const auth = useAuthStore();
@@ -28,6 +30,15 @@ const cerrarDialog = ref(false);
 const abrirForm = ref({ montoApertura: 0, notas: "" });
 const cerrarForm = ref({ montoCierre: 0, notas: "" });
 
+function mostrarAperturaNoPermitida() {
+  toast.add({
+    severity: "error",
+    summary: "Apertura no permitida",
+    detail: "El administrador no puede abrir caja",
+    life: 3000,
+  });
+}
+
 async function cargar() {
   loading.value = true;
   try {
@@ -35,14 +46,18 @@ async function cargar() {
       reportesApi.listarArqueos(),
       reportesApi.getActivo(),
     ]);
-    arqueos.value =
-      resLista.status === "fulfilled" ? resLista.value.data.data : [];
+    if (resLista.status === "rejected") throw resLista.reason;
+    arqueos.value = resLista.value.data.data;
     activo.value =
       resActivo.status === "fulfilled" ? resActivo.value.data.data : null;
-  } catch {
+  } catch (error) {
     toast.add({
       severity: "error",
       summary: "Error al cargar arqueos",
+      detail: getApiErrorMessage(
+        error,
+        "No se pudo cargar el historial de arqueos.",
+      ),
       life: 3000,
     });
   } finally {
@@ -83,10 +98,11 @@ async function handleAbrir() {
     abrirDialog.value = false;
     abrirForm.value = { montoApertura: 0, notas: "" };
     await cargar();
-  } catch {
+  } catch (error) {
     toast.add({
       severity: "error",
       summary: "Error al abrir caja",
+      detail: getApiErrorMessage(error, "No se pudo abrir la caja."),
       life: 3000,
     });
   } finally {
@@ -119,10 +135,11 @@ async function handleCerrar() {
     cerrarDialog.value = false;
     cerrarForm.value = { montoCierre: 0, notas: "" };
     await cargar();
-  } catch {
+  } catch (error) {
     toast.add({
       severity: "error",
       summary: "Error al cerrar caja",
+      detail: getApiErrorMessage(error, "No se pudo cerrar la caja."),
       life: 3000,
     });
   } finally {
@@ -146,12 +163,58 @@ function formatMonto(n: number | null) {
   return `S/ ${Number(n).toFixed(2)}`;
 }
 
+function exportarCsv() {
+  if (!arqueos.value.length) return;
+  downloadCsv(`arqueos-${new Date().toISOString().slice(0, 10)}.csv`, [
+    ["HISTORIAL DE ARQUEOS"],
+    ["Generado", new Date().toLocaleString("es-PE")],
+    [],
+    [
+      "ID",
+      "Cajero",
+      "Apertura",
+      "Cierre",
+      "Monto apertura",
+      "Monto cierre",
+      "Total ventas",
+      "Total efectivo",
+      "Total digital",
+      "Redondeo",
+      "Monto esperado",
+      "Diferencia",
+      "Estado",
+      "Notas",
+    ],
+    ...arqueos.value.map((item) => [
+      item.id,
+      item.nombreCajero,
+      item.aperturaEn,
+      item.cierreEn,
+      item.montoApertura,
+      item.montoCierre,
+      item.totalVentas,
+      item.totalEfectivo,
+      item.totalDigital,
+      item.totalRedondeo,
+      item.montoEsperado,
+      item.diferencia,
+      item.estado,
+      item.notas,
+    ]),
+  ]);
+  toast.add({
+    severity: "success",
+    summary: "Reporte exportado",
+    detail: "El historial de arqueos se descargó en formato CSV.",
+    life: 2500,
+  });
+}
+
 onMounted(cargar);
 </script>
 
 <template>
   <div class="section-page">
-    <Toast />
 
     <!-- Header -->
     <div class="section-header">
@@ -161,6 +224,14 @@ onMounted(cargar);
         </h1>
         <p class="section-sub">Gestión de apertura y cierre de caja</p>
       </div>
+      <Button
+        label="Exportar CSV"
+        icon="pi pi-download"
+        severity="secondary"
+        size="small"
+        :disabled="arqueos.length === 0"
+        @click="exportarCsv"
+      />
     </div>
 
     <!-- Card estado activo -->
@@ -224,7 +295,7 @@ onMounted(cargar);
             label="Abrir Caja"
             icon="pi pi-lock-open"
             size="small"
-            @click="abrirDialog = true"
+            @click="mostrarAperturaNoPermitida"
           />
         </div>
       </template>
@@ -293,8 +364,8 @@ onMounted(cargar);
         <label class="form-label">Monto de apertura (S/)</label>
         <InputNumber
           v-model="abrirForm.montoApertura"
+          v-bind="moneyInputProps"
           :min="0"
-          :minFractionDigits="2"
           fluid
         />
 
@@ -333,8 +404,8 @@ onMounted(cargar);
         <label class="form-label">Monto de cierre (S/)</label>
         <InputNumber
           v-model="cerrarForm.montoCierre"
+          v-bind="moneyInputProps"
           :min="0"
-          :minFractionDigits="2"
           fluid
         />
 
@@ -495,7 +566,7 @@ onMounted(cargar);
   background: $bg-card;
   border: 1px solid $border-subtle;
   border-radius: $r-md;
-  overflow: hidden;
+  overflow-x: auto;
 }
 
 .arqueo-table {

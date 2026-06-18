@@ -3,10 +3,8 @@ import { ref, onMounted, onUnmounted, computed } from "vue";
 import { useRouter } from "vue-router";
 import { useToast } from "primevue/usetoast";
 import { performLogout } from "@/shared/auth/logout";
-import { useAuthStore } from "@/modules/auth/store/authStore";
 import { useRol } from "@/shared/composables/useRol";
-import { Client } from "@stomp/stompjs";
-import SockJS from "sockjs-client";
+import { useRealtime } from "@/shared/composables/useRealtime";
 import { cocinaApi, type ColaItem } from "@/modules/cocina/api/cocinaApi";
 import Button from "primevue/button";
 import Dialog from "primevue/dialog";
@@ -14,12 +12,7 @@ import InputText from "primevue/inputtext";
 
 const router = useRouter();
 const toast = useToast();
-const auth = useAuthStore();
 const { rolMeta, isAdmin, nombreCompleto } = useRol();
-const API_BASE_URL = (import.meta.env.VITE_API_URL as string).replace(
-  /\/$/,
-  "",
-);
 
 const cola = ref<ColaItem[]>([]);
 const loading = ref(true);
@@ -28,8 +21,8 @@ const cancelDialogVisible = ref(false);
 const cancelando = ref(false);
 const itemCancelando = ref<ColaItem | null>(null);
 const motivoCancelacion = ref("");
+const refreshing = ref(false);
 let ticker: ReturnType<typeof setInterval>;
-let stompClient: Client | null = null;
 
 async function handleLogout() {
   await performLogout();
@@ -62,6 +55,8 @@ function urgencia(fechaStr: string): string {
 }
 
 async function cargarCola() {
+  if (refreshing.value) return;
+  refreshing.value = true;
   try {
     const res = await cocinaApi.getCola();
     cola.value = res.data.data;
@@ -74,64 +69,49 @@ async function cargarCola() {
     });
   } finally {
     loading.value = false;
+    refreshing.value = false;
   }
 }
 
-function conectarWebSocket() {
-  if (!auth.accessToken) return;
-
-  stompClient = new Client({
-    webSocketFactory: () => new SockJS(`${API_BASE_URL}/ws`),
-    connectHeaders: {
-      Authorization: `Bearer ${auth.accessToken}`,
-    },
-    onConnect: () => {
-      stompClient?.subscribe("/topic/cocina", (msg) => {
-        try {
-          const item = JSON.parse(msg.body);
-          const existe = cola.value.some((i) => i.detalleId === item.detalleId);
-          if (!existe) {
-            cola.value.push({
-              detalleId: item.detalleId,
-              pedidoId: item.pedidoId,
-              mesa: item.mesa,
-              producto: item.producto,
-              cantidad: item.cantidad,
-              observaciones: item.observaciones ?? null,
-              estado: "PENDIENTE",
-              solicitadoEn: item.solicitadoEn,
-            });
-            toast.add({
-              severity: "info",
-              summary: `Mesa ${item.mesa}`,
-              detail: `${item.cantidad}x ${item.producto}`,
-              life: 4000,
-            });
-          }
-        } catch {
-          /* ignorar mensajes malformados */
-        }
-      });
-    },
-    onWebSocketError: () => {
-      toast.add({
-        severity: "error",
-        summary: "Tiempo real desconectado",
-        detail: "No se pudo abrir la conexión de cocina",
-        life: 3000,
-      });
-    },
-    onStompError: () => {
-      toast.add({
-        severity: "error",
-        summary: "Acceso WebSocket denegado",
-        detail: "La sesión no pudo autenticarse para cocina",
-        life: 3000,
-      });
-    },
+function recibirNuevoItem(body: unknown) {
+  const item = body as Partial<ColaItem> | null;
+  if (!item?.detalleId || cola.value.some((row) => row.detalleId === item.detalleId)) {
+    return;
+  }
+  cola.value.push({
+    detalleId: item.detalleId,
+    pedidoId: Number(item.pedidoId),
+    mesa: String(item.mesa ?? "?"),
+    producto: String(item.producto ?? "Producto"),
+    cantidad: Number(item.cantidad ?? 1),
+    observaciones: item.observaciones ?? null,
+    estado: "PENDIENTE",
+    solicitadoEn: String(item.solicitadoEn ?? new Date().toISOString()),
   });
-  stompClient.activate();
+  toast.add({
+    severity: "info",
+    summary: `Mesa ${item.mesa ?? "?"}`,
+    detail: `${item.cantidad ?? 1}x ${item.producto ?? "Producto"}`,
+    life: 4000,
+  });
 }
+
+const { connect } = useRealtime(
+  {
+    "/topic/cocina": recibirNuevoItem,
+    "/topic/pedidos": () => cargarCola(),
+  },
+  {
+    onError: () => {
+      toast.add({
+        severity: "warn",
+        summary: "Tiempo real desconectado",
+        detail: "Cocina seguirá actualizándose automáticamente cada 10 segundos.",
+        life: 3000,
+      });
+    },
+  },
+);
 
 async function cambiarEstado(item: ColaItem, nuevoEstado: string) {
   try {
@@ -203,7 +183,7 @@ async function confirmarCancelacion() {
 
 onMounted(async () => {
   await cargarCola();
-  conectarWebSocket();
+  connect();
   ticker = setInterval(() => {
     now.value = Date.now();
     cargarCola();
@@ -211,7 +191,6 @@ onMounted(async () => {
 });
 
 onUnmounted(() => {
-  stompClient?.deactivate();
   clearInterval(ticker);
 });
 </script>

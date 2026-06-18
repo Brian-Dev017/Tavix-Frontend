@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted } from "vue";
 import { useToast } from "primevue/usetoast";
-import Toast from "primevue/toast";
 import InputText from "primevue/inputtext";
 import Button from "primevue/button";
 import {
@@ -17,10 +16,13 @@ import {
   onlyDigits,
   ruc,
 } from "@/shared/validation/inputValidation";
+import { getApiErrorMessage } from "@/shared/api/apiError";
 
 const toast = useToast();
 const loading = ref(false);
 const saving = ref(false);
+const editing = ref(false);
+const original = ref<NegocioConfig | null>(null);
 
 const form = ref<NegocioConfig>({
   id: 1,
@@ -36,10 +38,16 @@ async function cargar() {
   try {
     const res = await configuracionApi.getNegocio();
     form.value = { ...res.data.data };
-  } catch {
+    original.value = { ...res.data.data };
+    editing.value = false;
+  } catch (error) {
     toast.add({
       severity: "error",
       summary: "Error al cargar datos del negocio",
+      detail: getApiErrorMessage(
+        error,
+        "No se pudieron consultar los datos actuales del negocio.",
+      ),
       life: 3000,
     });
   } finally {
@@ -65,22 +73,42 @@ async function guardar() {
   }
   saving.value = true;
   try {
-    await configuracionApi.updateNegocio({
+    const response = await configuracionApi.updateNegocio({
       rucNegocio: onlyDigits(form.value.rucNegocio),
       nombreComercial: cleanText(form.value.nombreComercial),
       direccion: cleanText(form.value.direccion),
       logoUrl: cleanText(form.value.logoUrl),
     });
+    form.value = { ...response.data.data };
+    original.value = { ...response.data.data };
+    editing.value = false;
     toast.add({
       severity: "success",
       summary: "Datos guardados correctamente",
       life: 2500,
     });
-  } catch {
-    toast.add({ severity: "error", summary: "Error al guardar", life: 3000 });
+  } catch (error) {
+    toast.add({
+      severity: "error",
+      summary: "Error al guardar",
+      detail: getApiErrorMessage(
+        error,
+        "No se pudieron guardar los datos del negocio.",
+      ),
+      life: 3000,
+    });
   } finally {
     saving.value = false;
   }
+}
+
+function editar() {
+  editing.value = true;
+}
+
+function cancelarEdicion() {
+  if (original.value) form.value = { ...original.value };
+  editing.value = false;
 }
 
 onMounted(cargar);
@@ -88,7 +116,6 @@ onMounted(cargar);
 
 <template>
   <div class="section-page">
-    <Toast />
 
     <div class="section-header">
       <div>
@@ -99,6 +126,16 @@ onMounted(cargar);
           Información que aparece en comprobantes impresos
         </p>
       </div>
+      <Button
+        v-if="!editing"
+        label="Editar"
+        icon="pi pi-pencil"
+        size="small"
+        severity="secondary"
+        outlined
+        :disabled="loading"
+        @click="editar"
+      />
     </div>
 
     <div v-if="loading" class="empty-state">
@@ -114,6 +151,7 @@ onMounted(cargar);
             v-model="form.rucNegocio"
             placeholder="20XXXXXXXXX"
             :maxlength="11"
+            :disabled="!editing || saving"
             fluid
           />
           <span class="field-hint">11 dígitos sin espacios</span>
@@ -125,6 +163,7 @@ onMounted(cargar);
           <InputText
             v-model="form.nombreComercial"
             placeholder="La Flor del Tumbo"
+            :disabled="!editing || saving"
             fluid
           />
         </div>
@@ -135,6 +174,7 @@ onMounted(cargar);
           <InputText
             v-model="form.direccion"
             placeholder="Jr. Ejemplo 123, Lima"
+            :disabled="!editing || saving"
             fluid
           />
         </div>
@@ -142,7 +182,12 @@ onMounted(cargar);
         <!-- Logo URL -->
         <div class="field-group field-full">
           <label class="field-lbl">URL del Logo</label>
-          <InputText v-model="form.logoUrl" placeholder="https://..." fluid />
+          <InputText
+            v-model="form.logoUrl"
+            placeholder="https://..."
+            :disabled="!editing || saving"
+            fluid
+          />
           <span class="field-hint"
             >Se muestra en los comprobantes impresos</span
           >
@@ -173,7 +218,7 @@ onMounted(cargar);
         </div>
       </div>
 
-      <div class="actions-row">
+      <div v-if="editing" class="actions-row">
         <Button
           label="Guardar cambios"
           icon="pi pi-check"
@@ -181,11 +226,11 @@ onMounted(cargar);
           @click="guardar"
         />
         <Button
-          label="Descartar"
+          label="Cancelar"
           severity="secondary"
           outlined
           :disabled="saving"
-          @click="cargar"
+          @click="cancelarEdicion"
         />
       </div>
     </div>

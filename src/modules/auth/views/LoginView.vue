@@ -39,12 +39,16 @@ async function handleLogin() {
         "Respuesta del servidor incompleta: " + JSON.stringify(res?.data),
       );
     }
-    const { accessToken, rol, nombre, apellido } = data;
+    const { accessToken, refreshToken, rol, nombre, apellido } = data;
+    if (!refreshToken) {
+      throw new Error("Respuesta del servidor sin refresh token");
+    }
     const normalizedRole = normalizeAuthRole(rol);
     if (!normalizedRole) {
       throw new Error(`Rol no reconocido: ${rol}`);
     }
     auth.setAccessToken(accessToken);
+    auth.setRefreshToken(refreshToken);
     auth.setUser({ nombre, apellido, rol: normalizedRole });
     const routes: Record<string, string> = {
       ME: "/mesas",

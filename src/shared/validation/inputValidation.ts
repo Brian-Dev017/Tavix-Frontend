@@ -51,7 +51,18 @@ export function numberRange(
 }
 
 export function money(value: unknown, label: string): string | null {
-  return numberRange(value, label, 0, 999999);
+  const rangeError = numberRange(value, label, 0, 999999);
+  if (rangeError) return rangeError;
+  return hasAtMostTwoDecimals(value)
+    ? null
+    : `${label} debe tener como máximo dos decimales`;
+}
+
+export function hasAtMostTwoDecimals(value: unknown): boolean {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return false;
+  const scaled = number * 100;
+  return Math.abs(scaled - Math.round(scaled)) < 1e-8;
 }
 
 export function nameText(value: unknown, label: string): string | null {

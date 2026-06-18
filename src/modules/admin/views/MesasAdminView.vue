@@ -2,17 +2,24 @@
 import { computed, ref, onMounted } from "vue";
 import { useToast } from "primevue/usetoast";
 import { useConfirm } from "primevue/useconfirm";
-import Toast from "primevue/toast";
 import ConfirmDialog from "primevue/confirmdialog";
 import Button from "primevue/button";
 import Dialog from "primevue/dialog";
 import InputNumber from "primevue/inputnumber";
+import InputText from "primevue/inputtext";
 import {
   adminApi,
   type MesaAdmin,
   type GuardarMesaRequest,
 } from "@/modules/admin/api/adminApi";
 import { firstError, required } from "@/shared/validation/inputValidation";
+import { getApiErrorMessage } from "@/shared/api/apiError";
+import {
+  canDeleteAdminTable,
+  canEditAdminTable,
+  canToggleAdminTable,
+  isTakeoutAdminTable,
+} from "@/shared/utils/adminTableRules";
 
 const toast = useToast();
 const confirm = useConfirm();
@@ -23,6 +30,7 @@ const dialog = ref(false);
 const esEdicion = ref(false);
 const saving = ref(false);
 const editId = ref(0);
+const mesaEditada = ref<MesaAdmin | null>(null);
 
 // Mesa: número entero (null al inicio), Capacidad: null al inicio
 const form = ref<{ numero: number | null; capacidad: number | null }>({
@@ -43,20 +51,19 @@ const ESTADO_STYLE: Record<
   INACTIVA: { label: "Inactiva", cls: "badge--gray" },
 };
 
-// Solo se puede editar/eliminar si la mesa está DISPONIBLE o RESERVADA
-function puedeEditarEliminar(m: MesaAdmin): boolean {
-  return m.estado === "DISPONIBLE" || m.estado === "RESERVADA";
-}
-
 async function cargar() {
   loading.value = true;
   try {
     const res = await adminApi.listarMesasAdmin();
     mesas.value = res.data.data;
-  } catch {
+  } catch (error) {
     toast.add({
       severity: "error",
       summary: "Error al cargar mesas",
+      detail: getApiErrorMessage(
+        error,
+        "No se pudieron consultar las mesas configuradas.",
+      ),
       life: 3000,
     });
   } finally {
@@ -68,14 +75,18 @@ function abrirCrear() {
   form.value = { numero: null, capacidad: null };
   capacidadTocada.value = false;
   esEdicion.value = false;
+  mesaEditada.value = null;
   dialog.value = true;
 }
 
 function abrirEditar(m: MesaAdmin) {
-  if (!puedeEditarEliminar(m)) return;
+  if (!canEditAdminTable(m)) return;
   editId.value = m.id;
-  // numero de mesa como entero
-  form.value = { numero: Number(m.numero), capacidad: m.capacidad };
+  mesaEditada.value = m;
+  form.value = {
+    numero: isTakeoutAdminTable(m) ? null : Number(m.numero),
+    capacidad: m.capacidad,
+  };
   capacidadTocada.value = false;
   esEdicion.value = true;
   dialog.value = true;
@@ -84,6 +95,7 @@ function abrirEditar(m: MesaAdmin) {
 // ── Validaciones ─────────────────────────────────────────────────────────────
 
 const numeroMesaDuplicado = computed(() => {
+  if (mesaEditada.value && isTakeoutAdminTable(mesaEditada.value)) return false;
   if (form.value.numero === null) return false;
   const numero = String(form.value.numero);
   return mesas.value.some(
@@ -120,11 +132,22 @@ const capacidadMesaError = computed(() => {
 
 // Botón habilitado solo cuando el formulario es completamente válido
 const formValido = computed(() => {
-  if (form.value.numero === null) return false;
+  if (
+    !mesaEditada.value ||
+    !isTakeoutAdminTable(mesaEditada.value)
+  ) {
+    if (form.value.numero === null) return false;
+  }
   if (numeroMesaError.value) return false;
   if (!capacidadEsValida.value) return false;
   return true;
 });
+
+function mesaLabel(numero: string): string {
+  return numero.toLowerCase().includes("llevar")
+    ? "Mesa para llevar"
+    : `Mesa ${numero}`;
+}
 
 function onCapacidadBlur() {
   // Se activa en cuanto el valor cambia (update:modelValue), no al perder foco
@@ -138,7 +161,11 @@ async function guardar() {
   capacidadTocada.value = true;
 
   const numeroStr =
-    form.value.numero !== null ? String(form.value.numero) : "";
+    mesaEditada.value && isTakeoutAdminTable(mesaEditada.value)
+      ? mesaEditada.value.numero
+      : form.value.numero !== null
+        ? String(form.value.numero)
+        : "";
 
   const validationError = firstError([
     required(numeroStr, "Número de mesa"),
@@ -178,11 +205,13 @@ async function guardar() {
     dialog.value = false;
     await cargar();
   } catch (e: unknown) {
-    const err = e as { response?: { data?: { message?: string } } };
     toast.add({
       severity: "error",
-      summary: "Error",
-      detail: err.response?.data?.message ?? "No se pudo guardar",
+      summary: "No se pudo guardar la mesa",
+      detail: getApiErrorMessage(
+        e,
+        "La mesa no pudo actualizarse. Revisa su estado e intenta nuevamente.",
+      ),
       life: 3000,
     });
   } finally {
@@ -193,22 +222,25 @@ async function guardar() {
 // ── Toggle / Eliminar ─────────────────────────────────────────────────────────
 
 async function toggleMesa(m: MesaAdmin) {
+  if (!canToggleAdminTable(m)) return;
   try {
     await adminApi.toggleEstadoMesa(m.id);
     await cargar();
   } catch (e: unknown) {
-    const err = e as { response?: { data?: { message?: string } } };
     toast.add({
       severity: "error",
-      summary: "Error",
-      detail: err.response?.data?.message ?? "No se pudo cambiar el estado",
+      summary: "No se pudo cambiar el estado",
+      detail: getApiErrorMessage(
+        e,
+        "El estado de la mesa no pudo actualizarse.",
+      ),
       life: 3000,
     });
   }
 }
 
 function confirmarEliminar(m: MesaAdmin) {
-  if (!puedeEditarEliminar(m)) return;
+  if (!canDeleteAdminTable(m)) return;
   confirm.require({
     message: `¿Eliminar la mesa "${m.numero}"? Esta acción es irreversible.`,
     header: "Confirmar eliminación",
@@ -225,11 +257,13 @@ function confirmarEliminar(m: MesaAdmin) {
         });
         await cargar();
       } catch (e: unknown) {
-        const err = e as { response?: { data?: { message?: string } } };
         toast.add({
           severity: "error",
-          summary: "Error",
-          detail: err.response?.data?.message ?? "No se pudo eliminar",
+          summary: "No se pudo eliminar la mesa",
+          detail: getApiErrorMessage(
+            e,
+            "La mesa no puede eliminarse en su estado actual.",
+          ),
           life: 3000,
         });
       }
@@ -242,7 +276,6 @@ onMounted(cargar);
 
 <template>
   <div class="section-page">
-    <Toast />
     <ConfirmDialog />
 
     <div class="section-header">
@@ -266,7 +299,7 @@ onMounted(cargar);
 
     <div v-else class="mesa-grid">
       <div v-for="m in mesas" :key="m.id" class="mesa-card">
-        <span class="mesa-num">{{ m.numero }}</span>
+        <span class="mesa-num">{{ mesaLabel(m.numero) }}</span>
         <span :class="['mesa-estado-badge', ESTADO_STYLE[m.estado].cls]">
           {{ ESTADO_STYLE[m.estado].label }}
         </span>
@@ -277,8 +310,8 @@ onMounted(cargar);
           <button
             class="mesa-btn"
             title="Editar"
-            :disabled="!puedeEditarEliminar(m)"
-            :class="{ 'mesa-btn--disabled': !puedeEditarEliminar(m) }"
+            :disabled="!canEditAdminTable(m)"
+            :class="{ 'mesa-btn--disabled': !canEditAdminTable(m) }"
             @click="abrirEditar(m)"
           >
             <i class="pi pi-pencil"></i>
@@ -286,6 +319,8 @@ onMounted(cargar);
           <button
             class="mesa-btn"
             title="Cambiar estado"
+            :disabled="!canToggleAdminTable(m)"
+            :class="{ 'mesa-btn--disabled': !canToggleAdminTable(m) }"
             @click="toggleMesa(m)"
           >
             <i class="pi pi-refresh"></i>
@@ -293,8 +328,8 @@ onMounted(cargar);
           <button
             class="mesa-btn mesa-btn--danger"
             title="Eliminar"
-            :disabled="!puedeEditarEliminar(m)"
-            :class="{ 'mesa-btn--disabled': !puedeEditarEliminar(m) }"
+            :disabled="!canDeleteAdminTable(m)"
+            :class="{ 'mesa-btn--disabled': !canDeleteAdminTable(m) }"
             @click="confirmarEliminar(m)"
           >
             <i class="pi pi-trash"></i>
@@ -313,7 +348,14 @@ onMounted(cargar);
       <!-- Número de mesa: solo enteros -->
       <div class="form-field">
         <label>Número de mesa</label>
+        <InputText
+          v-if="mesaEditada && isTakeoutAdminTable(mesaEditada)"
+          modelValue="Para llevar"
+          disabled
+          fluid
+        />
         <InputNumber
+          v-else
           v-model="form.numero"
           :useGrouping="false"
           :minFractionDigits="0"
@@ -429,7 +471,8 @@ onMounted(cargar);
 }
 
 .mesa-num {
-  font-size: 1.5rem;
+  font-family: $font-heading;
+  font-size: 1rem;
   font-weight: 700;
   color: $text-primary;
   line-height: 1;

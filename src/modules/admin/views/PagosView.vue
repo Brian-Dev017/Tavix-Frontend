@@ -1,13 +1,14 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from "vue";
 import { useToast } from "primevue/usetoast";
-import Toast from "primevue/toast";
 import Button from "primevue/button";
 import Chart from "primevue/chart";
 import {
   reportesApi,
   type VentasPorMetodo,
 } from "@/modules/admin/api/reportesApi";
+import { getApiErrorMessage } from "@/shared/api/apiError";
+import { downloadCsv } from "@/shared/utils/reportExport";
 
 const toast = useToast();
 
@@ -112,10 +113,15 @@ async function cargar() {
   try {
     const res = await reportesApi.getVentas(desde.value, hasta.value);
     data.value = res.data.data.ventasPorMetodo;
-  } catch {
+  } catch (error) {
+    data.value = null;
     toast.add({
       severity: "error",
       summary: "Error al cargar métodos de pago",
+      detail: getApiErrorMessage(
+        error,
+        "No se pudo cargar el reporte de pagos.",
+      ),
       life: 3000,
     });
   } finally {
@@ -123,12 +129,39 @@ async function cargar() {
   }
 }
 
+function exportarCsv() {
+  if (!data.value?.length) return;
+
+  downloadCsv(`pagos-${new Date().toISOString().slice(0, 10)}.csv`, [
+    ["REPORTE DE MÉTODOS DE PAGO"],
+    ["Fecha", new Date().toISOString().slice(0, 10)],
+    [],
+    ["Método", "Transacciones", "Total"],
+    ...data.value.map((item) => [
+      item.metodo,
+      item.cantidad,
+      item.total,
+    ]),
+    [],
+    [
+      "TOTAL",
+      data.value.reduce((sum, item) => sum + item.cantidad, 0),
+      total.value,
+    ],
+  ]);
+  toast.add({
+    severity: "success",
+    summary: "Reporte exportado",
+    detail: "El reporte de métodos de pago se descargó en formato CSV.",
+    life: 2500,
+  });
+}
+
 onMounted(cargar);
 </script>
 
 <template>
   <div class="section-page">
-    <Toast />
 
     <!-- Header -->
     <div class="section-header">
@@ -138,14 +171,24 @@ onMounted(cargar);
         </h1>
         <p class="section-sub">Desglose de ventas por método</p>
       </div>
-      <Button
-        icon="pi pi-refresh"
-        size="small"
-        text
-        @click="cargar"
-        :loading="loading"
-        v-tooltip.top="'Actualizar'"
-      />
+      <div class="header-actions">
+        <Button
+          label="Exportar CSV"
+          icon="pi pi-download"
+          size="small"
+          severity="secondary"
+          :disabled="!data?.length"
+          @click="exportarCsv"
+        />
+        <Button
+          icon="pi pi-refresh"
+          size="small"
+          text
+          @click="cargar"
+          :loading="loading"
+          v-tooltip.top="'Actualizar'"
+        />
+      </div>
     </div>
 
     <!-- Filtro de fecha (readonly hoy) -->
@@ -244,6 +287,12 @@ onMounted(cargar);
   font-size: 0.75rem;
   color: $text-muted;
   margin: 0.15rem 0 0;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
 }
 
 .filter-row {

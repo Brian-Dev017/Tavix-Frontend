@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted } from "vue";
 import { useToast } from "primevue/usetoast";
-import Toast from "primevue/toast";
 import Button from "primevue/button";
 import Select from "primevue/select";
 import Dialog from "primevue/dialog";
@@ -10,8 +9,14 @@ import {
   type ComprobanteHistorial,
   type HistorialDetalle,
 } from "@/modules/admin/api/reportesApi";
-import { loadComprobantePdfData, openComprobantePdf, saveComprobantePdfData } from "@/shared/utils/comprobantePdf";
+import {
+  downloadComprobantePdf,
+  openComprobantePdf,
+  toPdfComprobanteData,
+} from "@/shared/utils/comprobantePdf";
 import { oneOf } from "@/shared/validation/inputValidation";
+import { getApiErrorMessage } from "@/shared/api/apiError";
+import { downloadCsv } from "@/shared/utils/reportExport";
 
 const toast = useToast();
 
@@ -59,10 +64,14 @@ async function cargar(p = 0) {
     totalPages.value = data.totalPages;
     totalElements.value = data.totalElements;
     page.value = data.number;
-  } catch {
+  } catch (error) {
     toast.add({
       severity: "error",
       summary: "Error al cargar historial",
+      detail: getApiErrorMessage(
+        error,
+        "No se pudo cargar el historial de comprobantes.",
+      ),
       life: 3000,
     });
   } finally {
@@ -97,53 +106,100 @@ async function verDetalle(id: number) {
   try {
     detalle.value = (await reportesApi.getHistorialDetalle(id)).data.data;
     detalleDialog.value = true;
-  } catch {
-    toast.add({ severity: "error", summary: "Error al cargar detalle", life: 3000 });
+  } catch (error) {
+    toast.add({
+      severity: "error",
+      summary: "Error al cargar detalle",
+      detail: getApiErrorMessage(
+        error,
+        "No se pudo cargar el detalle del comprobante.",
+      ),
+      life: 3000,
+    });
   }
 }
 
+async function obtenerPdf(id: number) {
+  const data = (await reportesApi.getHistorialDetalle(id)).data.data;
+  return toPdfComprobanteData(data);
+}
+
 async function verPdf(id: number) {
-  const guardado = loadComprobantePdfData(id);
-  if (guardado) {
-    openComprobantePdf(guardado);
-    return;
-  }
   try {
-    const data = (await reportesApi.getHistorialDetalle(id)).data.data;
-    const pdfData = {
-      comprobanteId: data.comprobanteId,
-      pedidoId: data.pedidoId,
-      tipoComprobante: data.tipoComprobante,
-      serie: data.serie,
-      numero: data.numero,
-      metodoPago: data.metodoPago,
-      subtotal: data.subtotal,
-      igv: data.igv,
-      descuento: data.descuento,
-      total: data.total,
-      efectivoRecibido: data.efectivoRecibido,
-      vuelto: data.vuelto,
-      pagadoEn: data.pagadoEn,
-      clienteDocumento: data.clienteDocumento ?? "",
-      clienteNombre: data.clienteNombre ?? "",
-      clienteDireccion: data.clienteDireccion ?? "",
-      negocioNombre: data.negocioNombre ?? "",
-      negocioRuc: data.negocioRuc ?? "",
-      negocioDireccion: data.negocioDireccion ?? "",
-      negocioLogoUrl: data.negocioLogoUrl ?? "",
-      items: data.items.map((item) => ({
-        producto: item.producto,
-        cantidad: item.cantidad,
-        precio: item.precio,
-        subtotal: item.subtotal,
-        observaciones: item.observaciones,
-      })),
-    };
-    saveComprobantePdfData(pdfData);
-    openComprobantePdf(pdfData);
-  } catch {
-    toast.add({ severity: "error", summary: "PDF no disponible", life: 3000 });
+    openComprobantePdf(await obtenerPdf(id));
+  } catch (error) {
+    toast.add({
+      severity: "error",
+      summary: "PDF no disponible",
+      detail: getApiErrorMessage(
+        error,
+        "No se pudo generar la vista previa del comprobante.",
+      ),
+      life: 3000,
+    });
   }
+}
+
+async function descargarPdf(id: number) {
+  try {
+    downloadComprobantePdf(await obtenerPdf(id));
+    toast.add({
+      severity: "success",
+      summary: "PDF descargado",
+      life: 2500,
+    });
+  } catch (error) {
+    toast.add({
+      severity: "error",
+      summary: "PDF no disponible",
+      detail: getApiErrorMessage(
+        error,
+        "No se pudo descargar el comprobante.",
+      ),
+      life: 3000,
+    });
+  }
+}
+
+function exportarCsv() {
+  if (!items.value.length) return;
+  downloadCsv(`historial-comprobantes-pagina-${page.value + 1}.csv`, [
+    ["HISTORIAL DE COMPROBANTES"],
+    ["Estado", estadoFiltro.value || "TODOS"],
+    ["Página", page.value + 1],
+    ["Registros totales", totalElements.value],
+    [],
+    [
+      "ID",
+      "Pedido",
+      "Tipo",
+      "Serie",
+      "Número",
+      "Método",
+      "Total",
+      "Estado",
+      "Pagado",
+      "Creado",
+    ],
+    ...items.value.map((item) => [
+      item.id,
+      item.pedidoId,
+      item.tipoComprobante,
+      item.serie,
+      item.numero,
+      item.metodoPago,
+      item.total,
+      item.estado,
+      item.pagadoEn,
+      item.creadoEn,
+    ]),
+  ]);
+  toast.add({
+    severity: "success",
+    summary: "Reporte exportado",
+    detail: "La página actual del historial se descargó en formato CSV.",
+    life: 2500,
+  });
 }
 
 const estadoClass = (e: string) => ({
@@ -157,7 +213,6 @@ onMounted(() => cargar());
 
 <template>
   <div class="section-page">
-    <Toast />
 
     <div class="section-header">
       <div>
@@ -181,6 +236,14 @@ onMounted(() => cargar());
           size="small"
           :loading="loading"
           @click="cargar(0)"
+        />
+        <Button
+          label="Exportar CSV"
+          icon="pi pi-download"
+          size="small"
+          severity="secondary"
+          :disabled="items.length === 0"
+          @click="exportarCsv"
         />
       </div>
     </div>
@@ -222,7 +285,24 @@ onMounted(() => cargar());
             <td>{{ fmtFecha(c.pagadoEn) }}</td>
             <td>{{ fmtFecha(c.creadoEn) }}</td>
             <td>
-              <Button icon="pi pi-file-pdf" text rounded size="small" @click="verPdf(c.id)" />
+              <div class="pdf-actions">
+                <Button
+                  icon="pi pi-eye"
+                  text
+                  rounded
+                  size="small"
+                  v-tooltip.top="'Ver PDF'"
+                  @click="verPdf(c.id)"
+                />
+                <Button
+                  icon="pi pi-download"
+                  text
+                  rounded
+                  size="small"
+                  v-tooltip.top="'Descargar PDF'"
+                  @click="descargarPdf(c.id)"
+                />
+              </div>
             </td>
             <td>
               <Button icon="pi pi-eye" text rounded size="small" @click="verDetalle(c.id)" />
@@ -299,13 +379,19 @@ onMounted(() => cargar());
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  flex-wrap: wrap;
 }
 
 .table-wrap {
   background: $bg-card;
   border: 1px solid $border-subtle;
   border-radius: $r-md;
-  overflow: hidden;
+  overflow-x: auto;
+}
+
+.pdf-actions {
+  display: flex;
+  align-items: center;
 }
 
 .data-table {

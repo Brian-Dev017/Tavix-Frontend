@@ -4,7 +4,6 @@ import { useRouter } from "vue-router";
 import { useToast } from "primevue/usetoast";
 import { performLogout } from "@/shared/auth/logout";
 import { useRol } from "@/shared/composables/useRol";
-import Toast from "primevue/toast";
 import Button from "primevue/button";
 import Tabs from "primevue/tabs";
 import Tab from "primevue/tab";
@@ -79,6 +78,12 @@ const mesasOcupadas = () =>
 const usuariosActivos = () => usuarios.value.filter((u) => u.activo).length;
 const productosDisponibles = () =>
   productos.value.filter((p) => p.disponible).length;
+
+function mesaLabel(numero: string): string {
+  return numero.toLowerCase().includes("llevar")
+    ? "Mesa para llevar"
+    : `Mesa ${numero}`;
+}
 
 async function handleLogout() {
   await performLogout();
@@ -270,7 +275,6 @@ onMounted(cargarTodo);
 
 <template>
   <div class="admin-view">
-    <Toast />
     <ConfirmDialog />
 
     <!-- Header -->
@@ -513,7 +517,7 @@ onMounted(cargarTodo);
                   class="mesa-admin-card"
                 >
                   <div class="mesa-admin-top">
-                    <div class="mesa-admin-num">{{ m.numero }}</div>
+                    <div class="mesa-admin-num">{{ mesaLabel(m.numero) }}</div>
                     <span
                       class="mesa-badge"
                       :class="'mb-' + m.estado.toLowerCase()"

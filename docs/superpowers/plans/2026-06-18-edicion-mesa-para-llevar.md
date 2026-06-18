@@ -19,8 +19,8 @@
 
 - [ ] **Step 1: Escribir pruebas para identificar y autorizar la mesa para llevar**
 
-Cubrir que una mesa llamada `Para llevar` puede editarse en estado
-`DISPONIBLE` o `INACTIVA`, puede cambiar de estado en esos estados y nunca puede
+Cubrir que una mesa llamada `Para llevar` solo puede editarse en estado
+`DISPONIBLE`, puede cambiar de estado en `DISPONIBLE` o `INACTIVA` y nunca puede
 eliminarse.
 
 - [ ] **Step 2: Ejecutar las pruebas y confirmar que fallan**
@@ -121,3 +121,19 @@ Expected: PASS.
 - [ ] Confirmar que el nombre de la mesa para llevar nunca se envía vacío.
 - [ ] Confirmar que editar y cambiar estado se deshabilitan cuando está ocupada.
 - [ ] Confirmar que eliminar permanece deshabilitado siempre.
+
+### Task 4: Bloquear pedidos para llevar cuando la mesa está inactiva
+
+**Files:**
+- Create: `src/shared/utils/takeoutTableRules.ts`
+- Create: `src/shared/utils/takeoutTableRules.test.ts`
+- Modify: `src/modules/caja/views/CajaView.vue`
+- Modify: `src/modules/pedidos/views/PedidoView.vue`
+
+- [ ] Comprobar con una regla pura que solo `DISPONIBLE` permite el acceso.
+- [ ] Consultar `/api/mesas` desde Caja y deshabilitar el botón si la mesa para
+  llevar está inactiva, ausente o no pudo verificarse.
+- [ ] Revalidar el estado al entrar directamente a `/pedido-para-llevar` y
+  volver a `/caja` cuando no esté disponible.
+- [ ] Actualizar el estado junto con la recarga manual, periódica y en tiempo
+  real de Caja.
