@@ -1,12 +1,11 @@
 <script setup lang="ts">
-import { ref, onMounted } from "vue";
+import { computed, ref, onMounted } from "vue";
 import { useToast } from "primevue/usetoast";
 import Dialog from "primevue/dialog";
 import InputNumber from "primevue/inputnumber";
 import InputText from "primevue/inputtext";
 import Button from "primevue/button";
 import { reportesApi, type Arqueo } from "@/modules/admin/api/reportesApi";
-import { useAuthStore } from "@/modules/auth/store/authStore";
 import {
   cleanText,
   maxLength,
@@ -17,18 +16,19 @@ import { moneyInputProps } from "@/shared/forms/moneyInput";
 import { downloadCsv } from "@/shared/utils/reportExport";
 
 const toast = useToast();
-const auth = useAuthStore();
 
 const arqueos = ref<Arqueo[]>([]);
 const activo = ref<Arqueo | null>(null);
 const loading = ref(false);
 const saving = ref(false);
 
-const abrirDialog = ref(false);
 const cerrarDialog = ref(false);
-
-const abrirForm = ref({ montoApertura: 0, notas: "" });
+const cierreSeleccionado = ref<Arqueo | null>(null);
 const cerrarForm = ref({ montoCierre: 0, notas: "" });
+
+const precierresPendientes = computed(() =>
+  arqueos.value.filter((arqueo) => arqueo.estado === "PRECIERRE"),
+);
 
 function mostrarAperturaNoPermitida() {
   toast.add({
@@ -65,53 +65,32 @@ async function cargar() {
   }
 }
 
-async function handleAbrir() {
-  const cajeroId = auth.userId;
-  const validationError =
-    money(abrirForm.value.montoApertura, "Monto de apertura") ??
-    maxLength(abrirForm.value.notas, "Notas", 180);
-  if (validationError) {
+function solicitarCierre(arqueo: Arqueo) {
+  if (arqueo.estado !== "PRECIERRE") {
     toast.add({
       severity: "warn",
-      summary: "Revisa la apertura",
-      detail: validationError,
+      summary: "Cierre no disponible",
+      detail: "El cajero todavía no ha realizado el pre-cierre.",
       life: 3000,
     });
     return;
   }
-  if (cajeroId === null) {
-    toast.add({
-      severity: "warn",
-      summary: "No se pudo identificar el cajero",
-      life: 3000,
-    });
-    return;
-  }
-  saving.value = true;
-  try {
-    await reportesApi.abrirArqueo(
-      cajeroId,
-      Number(abrirForm.value.montoApertura),
-      cleanText(abrirForm.value.notas) || undefined,
-    );
-    toast.add({ severity: "success", summary: "Caja abierta", life: 2500 });
-    abrirDialog.value = false;
-    abrirForm.value = { montoApertura: 0, notas: "" };
-    await cargar();
-  } catch (error) {
-    toast.add({
-      severity: "error",
-      summary: "Error al abrir caja",
-      detail: getApiErrorMessage(error, "No se pudo abrir la caja."),
-      life: 3000,
-    });
-  } finally {
-    saving.value = false;
-  }
+  cierreSeleccionado.value = arqueo;
+  cerrarForm.value = {
+    montoCierre: Number(arqueo.montoCierre ?? arqueo.montoEsperado ?? 0),
+    notas: arqueo.notas ?? "",
+  };
+  cerrarDialog.value = true;
+}
+
+function cancelarCierre() {
+  cerrarDialog.value = false;
+  cierreSeleccionado.value = null;
+  cerrarForm.value = { montoCierre: 0, notas: "" };
 }
 
 async function handleCerrar() {
-  if (!activo.value) return;
+  if (!cierreSeleccionado.value) return;
   const validationError =
     money(cerrarForm.value.montoCierre, "Monto de cierre") ??
     maxLength(cerrarForm.value.notas, "Notas", 180);
@@ -127,13 +106,12 @@ async function handleCerrar() {
   saving.value = true;
   try {
     await reportesApi.cerrarArqueo(
-      activo.value.id,
+      cierreSeleccionado.value.id,
       Number(cerrarForm.value.montoCierre),
       cleanText(cerrarForm.value.notas) || undefined,
     );
     toast.add({ severity: "success", summary: "Caja cerrada", life: 2500 });
-    cerrarDialog.value = false;
-    cerrarForm.value = { montoCierre: 0, notas: "" };
+    cancelarCierre();
     await cargar();
   } catch (error) {
     toast.add({
@@ -279,11 +257,11 @@ onMounted(cargar);
         </div>
         <div class="status-actions">
           <Button
-            label="Cerrar Caja"
-            icon="pi pi-lock"
-            severity="danger"
+            label="Esperando pre-cierre del cajero"
+            icon="pi pi-clock"
+            severity="secondary"
             size="small"
-            @click="cerrarDialog = true"
+            disabled
           />
         </div>
       </template>
@@ -299,6 +277,39 @@ onMounted(cargar);
           />
         </div>
       </template>
+    </div>
+
+    <div v-if="precierresPendientes.length" class="precierre-panel">
+      <div>
+        <h2 class="history-title">Pre-cierres pendientes</h2>
+        <p class="status-desc">
+          {{ precierresPendientes.length }}
+          {{ precierresPendientes.length === 1 ? "cajero realizó" : "cajeros realizaron" }}
+          el pre-cierre y esperan revisión administrativa.
+        </p>
+      </div>
+      <div class="precierre-list">
+        <div
+          v-for="arqueo in precierresPendientes"
+          :key="arqueo.id"
+          class="precierre-item"
+        >
+          <div>
+            <strong>{{ arqueo.nombreCajero ?? `Cajero #${arqueo.cajeroId}` }}</strong>
+            <span>
+              Apertura {{ formatFecha(arqueo.aperturaEn) }} ·
+              Efectivo declarado {{ formatMonto(arqueo.montoCierre) }}
+            </span>
+          </div>
+          <Button
+            label="Revisar y cerrar"
+            icon="pi pi-check-circle"
+            severity="danger"
+            size="small"
+            @click="solicitarCierre(arqueo)"
+          />
+        </div>
+      </div>
     </div>
 
     <!-- Historial -->
@@ -318,16 +329,17 @@ onMounted(cargar);
             <th>Esperado</th>
             <th>Diferencia</th>
             <th>Estado</th>
+            <th>Acción</th>
           </tr>
         </thead>
         <tbody>
           <tr v-if="loading">
-            <td colspan="11" class="table-empty">
+            <td colspan="12" class="table-empty">
               <i class="pi pi-spinner pi-spin"></i> Cargando…
             </td>
           </tr>
           <tr v-else-if="arqueos.length === 0">
-            <td colspan="11" class="table-empty">Sin registros</td>
+            <td colspan="12" class="table-empty">Sin registros</td>
           </tr>
           <tr v-for="a in arqueos" :key="a.id">
             <td>{{ a.id }}</td>
@@ -343,62 +355,39 @@ onMounted(cargar);
             <td>
               <span
                 class="arqueo-badge"
-                :class="a.estado === 'ABIERTO' ? 'open' : 'closed'"
+                :class="{
+                  open: a.estado === 'ABIERTO',
+                  pending: a.estado === 'PRECIERRE',
+                  closed: a.estado === 'CERRADO',
+                }"
               >
                 {{ a.estado }}
               </span>
+            </td>
+            <td>
+              <Button
+                v-if="a.estado === 'PRECIERRE'"
+                label="Cerrar"
+                icon="pi pi-lock"
+                severity="danger"
+                size="small"
+                text
+                @click="solicitarCierre(a)"
+              />
+              <span v-else class="table-action-empty">—</span>
             </td>
           </tr>
         </tbody>
       </table>
     </div>
 
-    <!-- Dialog Abrir Caja -->
-    <Dialog
-      v-model:visible="abrirDialog"
-      header="Abrir Caja"
-      :modal="true"
-      :style="{ width: '360px' }"
-    >
-      <div class="form-grid">
-        <label class="form-label">Monto de apertura (S/)</label>
-        <InputNumber
-          v-model="abrirForm.montoApertura"
-          v-bind="moneyInputProps"
-          :min="0"
-          fluid
-        />
-
-        <label class="form-label">Notas (opcional)</label>
-        <InputText
-          v-model="abrirForm.notas"
-          placeholder="Observaciones…"
-          fluid
-        />
-      </div>
-
-      <template #footer>
-        <Button
-          label="Cancelar"
-          text
-          @click="abrirDialog = false"
-          :disabled="saving"
-        />
-        <Button
-          label="Abrir Caja"
-          icon="pi pi-lock-open"
-          @click="handleAbrir"
-          :loading="saving"
-        />
-      </template>
-    </Dialog>
-
     <!-- Dialog Cerrar Caja -->
     <Dialog
       v-model:visible="cerrarDialog"
-      header="Cerrar Caja"
+      :header="`Cerrar caja de ${cierreSeleccionado?.nombreCajero ?? 'cajero'}`"
       :modal="true"
       :style="{ width: '360px' }"
+      @hide="cancelarCierre"
     >
       <div class="form-grid">
         <label class="form-label">Monto de cierre (S/)</label>
@@ -421,7 +410,7 @@ onMounted(cargar);
         <Button
           label="Cancelar"
           text
-          @click="cerrarDialog = false"
+          @click="cancelarCierre"
           :disabled="saving"
         />
         <Button
@@ -510,10 +499,62 @@ onMounted(cargar);
     color: $c-green;
   }
 
+  &.pending {
+    background: $amber-bg;
+    color: $amber-dark;
+  }
+
   &.closed {
     background: $bg-surface;
     color: $text-dim;
   }
+}
+
+.precierre-panel {
+  background: $amber-bg-sm;
+  border: 1px solid $amber-glow;
+  border-radius: $r-md;
+  padding: 1rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.precierre-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.precierre-item {
+  background: $bg-card;
+  border: 1px solid $border-subtle;
+  border-radius: $r-sm;
+  padding: 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+
+  div {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+  }
+
+  strong {
+    color: $text-primary;
+    font-size: 0.82rem;
+  }
+
+  span {
+    color: $text-muted;
+    font-size: 0.72rem;
+  }
+}
+
+.table-action-empty {
+  color: $text-dim;
 }
 
 .status-detail-grid {

@@ -108,8 +108,14 @@ export interface Arqueo {
   totalRedondeo: number | null
   montoEsperado: number | null
   diferencia: number | null
-  estado: 'ABIERTO' | 'CERRADO'
+  estado: 'ABIERTO' | 'PRECIERRE' | 'CERRADO'
   notas: string | null
+}
+
+export interface EstadoApertura {
+  cajaAbierta: boolean
+  aperturasHoy: number
+  requiereAdministrador: boolean
 }
 
 export const reportesApi = {
@@ -135,8 +141,15 @@ export const reportesApi = {
   // Arqueos
   listarArqueos:  () => api.get<{ data: Arqueo[] }>('/api/caja/arqueos'),
   getActivo:      () => api.get<{ data: Arqueo }>('/api/caja/arqueos/activo'),
-  abrirArqueo:    (_cajeroId: number, montoApertura: number, notas?: string) =>
-    api.post<{ data: Arqueo }>('/api/caja/arqueos/abrir', { montoApertura, notas }),
+  getEstadoApertura: () =>
+    api.get<{ data: EstadoApertura }>('/api/caja/arqueos/estado-apertura'),
+  abrirArqueo:    (usuario: string, contrasena: string, montoApertura: number, notas?: string) =>
+    api.post<{ data: Arqueo }>('/api/caja/arqueos/abrir', {
+      usuario,
+      contrasena,
+      montoApertura,
+      notas,
+    }),
   registrarPrecierre: (id: number, usuario: string, contrasena: string, montoEfectivo: number, notas?: string) =>
     api.post<{ data: Arqueo }>(`/api/caja/arqueos/${id}/precierre`, { usuario, contrasena, montoEfectivo, notas }),
   cerrarArqueo:   (id: number, montoCierre: number, notas?: string) =>

@@ -5,12 +5,14 @@ import { useToast } from "primevue/usetoast";
 import { performLogout } from "@/shared/auth/logout";
 import { useRol } from "@/shared/composables/useRol";
 import { cajaApi, type PedidoResumen } from "@/modules/caja/api/cajaApi";
-import { reportesApi, type Arqueo } from "@/modules/admin/api/reportesApi";
+import {
+  reportesApi,
+  type Arqueo,
+  type EstadoApertura,
+} from "@/modules/admin/api/reportesApi";
 import { configuracionApi, type NegocioConfig } from "@/modules/admin/api/configuracionApi";
-import { authApi } from "@/modules/auth/api/authApi";
-import { useAuthStore, normalizeAuthRole } from "@/modules/auth/store/authStore";
+import { useAuthStore } from "@/modules/auth/store/authStore";
 import { pedidosApi } from "@/modules/pedidos/api/pedidosApi";
-import { decodeJwtPayload } from "@/shared/auth/jwt";
 import { useRealtime } from "@/shared/composables/useRealtime";
 import { moneyInputProps } from "@/shared/forms/moneyInput";
 import {
@@ -26,6 +28,7 @@ import type { InputNumberInputEvent } from "primevue/inputnumber";
 import Select from "primevue/select";
 import {
   cleanText,
+  digitsInput,
   dni,
   firstError,
   maxLength,
@@ -35,6 +38,7 @@ import {
   numberRange,
   oneOf,
   password,
+  personNameInput,
   onlyDigits,
   required,
   ruc,
@@ -55,6 +59,11 @@ const precierreDialog = ref(false);
 const guardandoPrecierre = ref(false);
 const validandoPrecierre = ref(false);
 const arqueoActivo = ref<Arqueo | null>(null);
+const estadoApertura = ref<EstadoApertura>({
+  cajaAbierta: false,
+  aperturasHoy: 0,
+  requiereAdministrador: false,
+});
 const negocio = ref<NegocioConfig | null>(null);
 const mesaParaLlevarDisponible = ref(false);
 const mesaParaLlevarVerificada = ref(false);
@@ -163,6 +172,9 @@ const nombreCajaActiva = computed(() => arqueoActivo.value?.nombreCajero ?? "otr
 const montoPrecierreRegistrado = computed(() =>
   cajaActiva.value ? Number(arqueoActivo.value?.montoCierre ?? 0) : 0,
 );
+const requiereAdminApertura = computed(
+  () => estadoApertura.value.requiereAdministrador,
+);
 
 async function cargarPedidos(silent = false) {
   if (pedidosRefreshing.value) return;
@@ -211,6 +223,19 @@ async function cargarArqueoActivo(silent = false) {
   }
 }
 
+async function cargarEstadoApertura() {
+  if (isAdmin.value) return;
+  try {
+    estadoApertura.value = (await reportesApi.getEstadoApertura()).data.data;
+  } catch {
+    estadoApertura.value = {
+      cajaAbierta: Boolean(arqueoActivo.value),
+      aperturasHoy: 0,
+      requiereAdministrador: false,
+    };
+  }
+}
+
 async function cargarEstadoMesaParaLlevar(silent = false) {
   if (mesaParaLlevarRefreshing.value) return;
   mesaParaLlevarRefreshing.value = true;
@@ -237,6 +262,7 @@ async function recargarTodo() {
   await Promise.allSettled([
     cargarPedidos(),
     cargarArqueoActivo(true),
+    cargarEstadoApertura(),
     cargarEstadoMesaParaLlevar(true),
   ]);
 }
@@ -247,6 +273,7 @@ function recargarRealtime() {
     void Promise.allSettled([
       cargarPedidos(true),
       cargarArqueoActivo(true),
+      cargarEstadoApertura(),
       cargarEstadoMesaParaLlevar(true),
     ]);
   }, 250);
@@ -257,24 +284,16 @@ const { connect } = useRealtime({
   "/topic/ventas": recargarRealtime,
 });
 
-function keepDigits(value: string, max: number) {
-  return onlyDigits(value).slice(0, max);
-}
-
-function keepLetters(value: string) {
-  return value.replace(/[^A-Za-zÁÉÍÓÚÜÑáéíóúüñ ]+/g, "").replace(/\s+/g, " ");
-}
-
 function handleDocumentoInput(value: string | null | undefined) {
-  rucDni.value = keepDigits(String(value ?? ""), tipoComprobante.value === "F" ? 11 : 8);
+  rucDni.value = digitsInput(value, tipoComprobante.value === "F" ? 11 : 8);
 }
 
 function handleNombreInput(value: string | null | undefined) {
-  nombreCliente.value = keepLetters(String(value ?? ""));
+  nombreCliente.value = personNameInput(value);
 }
 
 function handleApellidoInput(value: string | null | undefined) {
-  apellidoCliente.value = keepLetters(String(value ?? ""));
+  apellidoCliente.value = personNameInput(value);
 }
 
 function handleEfectivoInput(event: InputNumberInputEvent) {
@@ -537,20 +556,9 @@ async function aperturarCaja() {
 
   validandoCaja.value = true;
   try {
-    const loginRes = await authApi.login({
-      usuario: cleanText(aperturaForm.value.usuario),
-      contrasena: aperturaForm.value.contrasena,
-    });
-    const loginData = loginRes.data.data;
-    const rolValidado = normalizeAuthRole(loginData.rol);
-    const userIdValidado = Number(decodeJwtPayload(loginData.accessToken)?.sub ?? NaN);
-
-    if (!rolValidado || rolValidado !== auth.rol || userIdValidado !== auth.userId) {
-      throw new Error("Las credenciales no pertenecen al usuario actual");
-    }
-
     await reportesApi.abrirArqueo(
-      auth.userId ?? 0,
+      cleanText(aperturaForm.value.usuario),
+      aperturaForm.value.contrasena,
       Number(aperturaForm.value.montoApertura),
       cleanText(aperturaForm.value.notas) || undefined,
     );
@@ -561,7 +569,10 @@ async function aperturarCaja() {
       detail: "La apertura quedo registrada y visible para administracion",
       life: 3000,
     });
-    await cargarArqueoActivo(true);
+    await Promise.allSettled([
+      cargarArqueoActivo(true),
+      cargarEstadoApertura(),
+    ]);
   } catch (e: unknown) {
     const err = e as { response?: { data?: { message?: string } }; message?: string };
     toast.add({
@@ -607,9 +618,11 @@ async function registrarPrecierre() {
     toast.add({
       severity: "success",
       summary: "Pre-cierre registrado",
-      detail: "El efectivo contado quedo listo para revision del administrador",
+      detail: "La caja quedo pendiente de revision y ya puedes realizar una nueva apertura",
       life: 3000,
     });
+    arqueoActivo.value = null;
+    await cargarEstadoApertura();
   } catch (e: unknown) {
     const err = e as { response?: { data?: { message?: string } }; message?: string };
     toast.add({
@@ -626,6 +639,7 @@ async function registrarPrecierre() {
 onMounted(() => {
   cargarPedidos();
   cargarArqueoActivo(true);
+  cargarEstadoApertura();
   cargarEstadoMesaParaLlevar();
   cargarNegocio();
   connect();
@@ -633,6 +647,7 @@ onMounted(() => {
   refrescoCaja = setInterval(() => {
     void Promise.allSettled([
       cargarArqueoActivo(true),
+      cargarEstadoApertura(),
       cargarEstadoMesaParaLlevar(true),
     ]);
   }, 10000);
@@ -768,14 +783,14 @@ onUnmounted(() => {
           </div>
 
           <Button
-            v-if="!cajaActiva"
             label="Aperturar caja"
             icon="pi pi-lock-open"
             size="small"
+            :disabled="cajaActiva"
             @click="abrirDialogoCaja"
           />
           <Button
-            v-else-if="cajaActivaDelUsuario"
+            v-if="cajaActivaDelUsuario"
             label="Registrar pre-cierre"
             icon="pi pi-wallet"
             severity="contrast"
@@ -937,6 +952,7 @@ onUnmounted(() => {
                 v-model="rucDni"
                 :placeholder="tipoComprobante === 'F' ? '20xxxxxxxxx' : '########'"
                 :maxlength="tipoComprobante === 'F' ? 11 : 8"
+                inputmode="numeric"
                 @update:modelValue="handleDocumentoInput"
                 fluid
               />
@@ -1001,20 +1017,25 @@ onUnmounted(() => {
     >
       <div class="dialog-form">
         <p class="dialog-copy">
-          Ingresa tus credenciales para validar la apertura. Este registro quedara visible en el panel de administracion.
+          <template v-if="requiereAdminApertura">
+            Esta es una reapertura del mismo dia. Ingresa las credenciales de un administrador.
+          </template>
+          <template v-else>
+            Ingresa tus credenciales de cajero para validar la primera apertura del dia.
+          </template>
         </p>
 
         <div class="form-field">
-          <label>Usuario</label>
+          <label>{{ requiereAdminApertura ? "Usuario administrador" : "Usuario cajero" }}</label>
           <InputText
             v-model="aperturaForm.usuario"
-            placeholder="Tu usuario"
+            :placeholder="requiereAdminApertura ? 'Usuario administrador' : 'Tu usuario'"
             fluid
           />
         </div>
 
         <div class="form-field">
-          <label>Contrasena</label>
+          <label>{{ requiereAdminApertura ? "Contrasena de administrador" : "Contrasena" }}</label>
           <InputText
             v-model="aperturaForm.contrasena"
             type="password"

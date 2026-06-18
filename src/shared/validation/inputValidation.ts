@@ -6,6 +6,16 @@ export function onlyDigits(value: unknown): string {
   return String(value ?? "").replace(/\D/g, "");
 }
 
+export function digitsInput(value: unknown, maxLength: number): string {
+  return onlyDigits(value).slice(0, maxLength);
+}
+
+export function personNameInput(value: unknown): string {
+  return String(value ?? "")
+    .replace(/[^A-Za-zÁÉÍÓÚÜÑáéíóúüñ ]+/g, "")
+    .replace(/\s+/g, " ");
+}
+
 export function required(value: unknown, label: string): string | null {
   return cleanText(value) ? null : `${label} es obligatorio`;
 }
@@ -101,13 +111,13 @@ export function password(value: unknown, label = "Contraseña"): string | null {
 }
 
 export function ruc(value: unknown, label = "RUC"): string | null {
-  const digits = onlyDigits(value);
-  return digits.length === 11 ? null : `${label} debe tener 11 dígitos`;
+  const text = cleanText(value);
+  return /^\d{11}$/.test(text) ? null : `${label} debe tener 11 dígitos`;
 }
 
 export function dni(value: unknown, label = "DNI"): string | null {
-  const digits = onlyDigits(value);
-  return digits.length === 8 ? null : `${label} debe tener 8 dígitos`;
+  const text = cleanText(value);
+  return /^\d{8}$/.test(text) ? null : `${label} debe tener 8 dígitos`;
 }
 
 export function email(value: unknown, label = "Correo"): string | null {
