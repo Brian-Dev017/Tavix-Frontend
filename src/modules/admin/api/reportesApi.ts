@@ -84,6 +84,7 @@ export interface HistorialDetalle {
   negocioRuc: string | null
   negocioDireccion: string | null
   negocioLogoUrl: string | null
+  negocioIgvPorcentaje: number | null
   items: HistorialDetalleItem[]
 }
 

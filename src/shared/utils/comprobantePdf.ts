@@ -16,6 +16,7 @@ export interface PdfComprobanteData {
   negocioRuc?: string;
   negocioDireccion?: string;
   negocioLogoUrl?: string;
+  negocioIgvPorcentaje?: number | null;
   serie: string;
   numero: number;
   metodoPago: string;
@@ -53,6 +54,7 @@ export interface ComprobantePdfSource {
   negocioRuc?: string | null;
   negocioDireccion?: string | null;
   negocioLogoUrl?: string | null;
+  negocioIgvPorcentaje?: number | null;
   items: Array<{
     producto: string;
     cantidad: number;
@@ -64,13 +66,16 @@ export interface ComprobantePdfSource {
 
 const STORAGE_PREFIX = "comprobante_pdf_data:";
 const RECEIPT_CHARS = 42;
+const DESCRIPTION_WIDTH = 18;
+const QUANTITY_WIDTH = 5;
+const PRICE_WIDTH = 8;
+const TOTAL_WIDTH = 11;
 
 function sanitizeText(value: string | null | undefined): string {
   return String(value ?? "")
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/[^\x20-\x7E]/g, " ")
-    .replace(/[()\\]/g, "\\$&")
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -111,6 +116,23 @@ function fmtDate(value?: string | null): string {
   });
 }
 
+function fmtReceiptDate(value?: string | null): string {
+  if (!value) return "--";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "--";
+  const parts = new Intl.DateTimeFormat("es-PE", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(date);
+  const get = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((part) => part.type === type)?.value ?? "--";
+  return `${get("day")}.${get("month")}.${get("year")} | ${get("hour")}:${get("minute")}`;
+}
+
 function separator(char = "-"): string {
   return char.repeat(RECEIPT_CHARS);
 }
@@ -139,14 +161,20 @@ function esTicket(data: PdfComprobanteData): boolean {
 }
 
 function negocioNombre(data: PdfComprobanteData): string {
-  return sanitizeText(data.negocioNombre) || "LA FLOR DEL TUMBO";
+  return (
+    sanitizeText(data.negocioNombre) ||
+    (esTicket(data) ? "LA FLOR DEL TUMBO" : "")
+  );
 }
 
 function addBusinessHeader(lines: string[], data: PdfComprobanteData) {
-  lines.push(centerLine(negocioNombre(data).toUpperCase()));
+  const nombre = negocioNombre(data);
+  if (nombre) lines.push(centerLine(nombre.toUpperCase()));
   if (data.negocioRuc) lines.push(centerLine(`RUC: ${data.negocioRuc}`));
   if (data.negocioDireccion) {
-    for (const line of wrapText(data.negocioDireccion)) lines.push(centerLine(line));
+    for (const line of wrapText(data.negocioDireccion.toUpperCase())) {
+      lines.push(centerLine(line));
+    }
   }
 }
 
@@ -183,45 +211,181 @@ function buildTicketLines(data: PdfComprobanteData): string[] {
   return lines;
 }
 
+const UNITS = [
+  "",
+  "UNO",
+  "DOS",
+  "TRES",
+  "CUATRO",
+  "CINCO",
+  "SEIS",
+  "SIETE",
+  "OCHO",
+  "NUEVE",
+  "DIEZ",
+  "ONCE",
+  "DOCE",
+  "TRECE",
+  "CATORCE",
+  "QUINCE",
+  "DIECISEIS",
+  "DIECISIETE",
+  "DIECIOCHO",
+  "DIECINUEVE",
+  "VEINTE",
+  "VEINTIUNO",
+  "VEINTIDOS",
+  "VEINTITRES",
+  "VEINTICUATRO",
+  "VEINTICINCO",
+  "VEINTISEIS",
+  "VEINTISIETE",
+  "VEINTIOCHO",
+  "VEINTINUEVE",
+];
+
+const TENS = [
+  "",
+  "",
+  "",
+  "TREINTA",
+  "CUARENTA",
+  "CINCUENTA",
+  "SESENTA",
+  "SETENTA",
+  "OCHENTA",
+  "NOVENTA",
+];
+
+const HUNDREDS = [
+  "",
+  "CIENTO",
+  "DOSCIENTOS",
+  "TRESCIENTOS",
+  "CUATROCIENTOS",
+  "QUINIENTOS",
+  "SEISCIENTOS",
+  "SETECIENTOS",
+  "OCHOCIENTOS",
+  "NOVECIENTOS",
+];
+
+function integerToWords(value: number): string {
+  const n = Math.trunc(Math.max(0, Math.min(999999, value)));
+  if (n === 0) return "CERO";
+  if (n < 30) return UNITS[n];
+  if (n < 100) {
+    const unit = n % 10;
+    return `${TENS[Math.trunc(n / 10)]}${unit ? ` Y ${UNITS[unit]}` : ""}`;
+  }
+  if (n === 100) return "CIEN";
+  if (n < 1000) {
+    return `${HUNDREDS[Math.trunc(n / 100)]} ${integerToWords(n % 100)}`.trim();
+  }
+  const thousands = Math.trunc(n / 1000);
+  const rest = n % 1000;
+  const thousandsText =
+    thousands === 1
+      ? "MIL"
+      : `${integerToWords(thousands).replace(/VEINTIUNO$/, "VEINTIUN").replace(/ Y UNO$/, " Y UN").replace(/UNO$/, "UN")} MIL`;
+  return `${thousandsText}${rest ? ` ${integerToWords(rest)}` : ""}`;
+}
+
+function moneyToWords(value: number): string {
+  const safe = Math.max(0, Math.min(999999.99, Number(value) || 0));
+  const roundedCents = Math.round(safe * 100);
+  const integer = Math.trunc(roundedCents / 100);
+  const cents = roundedCents % 100;
+  return `${integerToWords(integer)} Y ${String(cents).padStart(2, "0")}/100 SOLES`;
+}
+
+function formatColumns(
+  description: string,
+  quantity: string,
+  price: string,
+  total: string,
+): string {
+  return [
+    sanitizeText(description).slice(0, DESCRIPTION_WIDTH).padEnd(DESCRIPTION_WIDTH),
+    sanitizeText(quantity).slice(0, QUANTITY_WIDTH).padStart(QUANTITY_WIDTH),
+    sanitizeText(price).slice(0, PRICE_WIDTH).padStart(PRICE_WIDTH),
+    sanitizeText(total).slice(0, TOTAL_WIDTH).padStart(TOTAL_WIDTH),
+  ].join("");
+}
+
+function itemLines(item: PdfComprobanteItem): string[] {
+  const descriptions = wrapText(item.producto.toUpperCase(), DESCRIPTION_WIDTH);
+  return descriptions.map((description, index) =>
+    formatColumns(
+      description,
+      index === 0 ? String(item.cantidad) : "",
+      index === 0 ? `S/ ${Number(item.precio).toFixed(2)}` : "",
+      index === 0 ? `S/ ${Number(item.subtotal).toFixed(2)}` : "",
+    ),
+  );
+}
+
+function comprobanteTitle(data: PdfComprobanteData): string {
+  const tipo = sanitizeText(data.tipoComprobante).toLowerCase();
+  return tipo.includes("factura")
+    ? "FACTURA ELECTRONICA"
+    : "BOLETA DE VENTA ELECTRONICA";
+}
+
+function addClient(lines: string[], data: PdfComprobanteData) {
+  const factura = comprobanteTitle(data).startsWith("FACTURA");
+  if (data.clienteDocumento) {
+    lines.push(`${factura ? "RUC" : "DNI"}: ${sanitizeText(data.clienteDocumento)}`);
+  }
+  if (data.clienteNombre) {
+    for (const line of wrapText(`CLIENTE: ${data.clienteNombre.toUpperCase()}`)) {
+      lines.push(line);
+    }
+  }
+  if (factura && data.clienteDireccion) {
+    for (const line of wrapText(`DIRECCION: ${data.clienteDireccion.toUpperCase()}`)) {
+      lines.push(line);
+    }
+  }
+}
+
+function addFiscalSummary(lines: string[], data: PdfComprobanteData) {
+  const igvPercentage = Number(data.negocioIgvPorcentaje ?? 18);
+  lines.push(rightLine("Op. Exonerada", fmtMoney(0)));
+  lines.push(rightLine("Op. Inafecta", fmtMoney(0)));
+  lines.push(rightLine("Op. Gravada", fmtMoney(data.subtotal)));
+  lines.push(rightLine(`I.G.V. (${igvPercentage.toFixed(0)}%)`, fmtMoney(data.igv)));
+  if (Number(data.descuento ?? 0) > 0) {
+    lines.push(rightLine("Descuento", `-S/ ${Number(data.descuento).toFixed(2)}`));
+  }
+  lines.push(rightLine("Importe Total", fmtMoney(data.total)));
+}
+
 function buildBoletaFacturaLines(data: PdfComprobanteData): string[] {
   const lines: string[] = [];
   addBusinessHeader(lines, data);
-  lines.push(separator("*"));
-  lines.push(centerLine(sanitizeText(data.tipoComprobante).toUpperCase()));
-  lines.push(centerLine(comprobanteCodigo(data)));
-  lines.push(rightLine("Fecha", fmtDate(data.pagadoEn)));
-  lines.push(rightLine("Pedido", `P-${data.pedidoId}`));
-  lines.push(rightLine("Metodo", data.metodoPago));
   lines.push(separator("-"));
-
-  if (data.clienteDocumento || data.clienteNombre || data.clienteDireccion) {
-    if (data.clienteDocumento) lines.push(rightLine("Doc.", data.clienteDocumento));
-    if (data.clienteNombre) {
-      for (const line of wrapText(`Cliente: ${data.clienteNombre}`)) lines.push(line);
-    }
-    if (data.clienteDireccion) {
-      for (const line of wrapText(`Direccion: ${data.clienteDireccion}`)) lines.push(line);
-    }
-    lines.push(separator("-"));
-  }
-
-  lines.push(rightLine("DESCRIPCION", "IMPORTE"));
-  addItems(lines, data);
-  lines.push(separator("="));
-  lines.push(rightLine("SUBTOTAL", fmtMoney(data.subtotal)));
-  lines.push(rightLine("IGV 18%", fmtMoney(data.igv)));
-  if (Number(data.descuento ?? 0) > 0) {
-    lines.push(rightLine("DESCUENTO", `-${fmtMoney(data.descuento)}`));
-  }
+  lines.push(centerLine(comprobanteTitle(data)));
+  lines.push(centerLine(comprobanteCodigo(data)));
+  addClient(lines, data);
+  lines.push(separator("-"));
+  lines.push(formatColumns("Descripcion", "Cant.", "Precio", "Total"));
+  lines.push(separator("-"));
+  for (const item of data.items) lines.push(...itemLines(item));
+  lines.push(`${data.items.reduce((sum, item) => sum + Number(item.cantidad || 0), 0)} UNIDAD(ES)`);
+  lines.push(separator("-"));
+  addFiscalSummary(lines, data);
+  lines.push(separator("-"));
   lines.push(rightLine("TOTAL A PAGAR", fmtMoney(data.total)));
-  lines.push(separator("="));
+  for (const line of wrapText(moneyToWords(data.total))) lines.push(centerLine(line));
   if (sanitizeText(data.metodoPago) === "EFECTIVO") {
-    lines.push(rightLine("RECIBIDO", fmtMoney(data.efectivoRecibido)));
+    lines.push(rightLine("SOLES", fmtMoney(data.efectivoRecibido)));
     lines.push(rightLine("VUELTO", fmtMoney(data.vuelto)));
+  } else {
+    lines.push(rightLine("METODO", data.metodoPago));
   }
-  lines.push("");
-  lines.push(centerLine("Representacion impresa"));
-  lines.push(centerLine("Gracias por su compra"));
+  lines.push(separator("-"));
+  lines.push(centerLine(fmtReceiptDate(data.pagadoEn)));
   return lines;
 }
 
@@ -230,7 +394,7 @@ export function buildComprobanteLines(data: PdfComprobanteData): string[] {
 }
 
 function encodePdfText(text: string): string {
-  return sanitizeText(text);
+  return sanitizeText(text).replace(/[()\\]/g, "\\$&");
 }
 
 function createPdfBlob(data: PdfComprobanteData): Blob {
@@ -308,6 +472,7 @@ export function toPdfComprobanteData(
     negocioRuc: source.negocioRuc ?? "",
     negocioDireccion: source.negocioDireccion ?? "",
     negocioLogoUrl: source.negocioLogoUrl ?? "",
+    negocioIgvPorcentaje: source.negocioIgvPorcentaje ?? 18,
     items: source.items.map((item) => ({
       producto: item.producto,
       cantidad: item.cantidad,

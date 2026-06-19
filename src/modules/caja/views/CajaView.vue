@@ -407,6 +407,7 @@ async function cobrar() {
       negocioRuc: negocio.value?.rucNegocio ?? "",
       negocioDireccion: negocio.value?.direccion ?? "",
       negocioLogoUrl: negocio.value?.logoUrl ?? "",
+      negocioIgvPorcentaje: negocio.value?.igvPorcentaje ?? 18,
       serie: comp.serie,
       numero: comp.numero,
       metodoPago: comp.metodoPago,
