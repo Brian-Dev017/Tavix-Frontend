@@ -1,9 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { toLocalDateInput, validateDateRange } from "./date";
+import { toLocalDateInput, toLocalDayRange, validateDateRange } from "./date";
 
 describe("date helpers", () => {
   it("formats the local calendar date without converting to UTC", () => {
     expect(toLocalDateInput(new Date(2026, 5, 18))).toBe("2026-06-18");
+  });
+
+  it("uses the same local calendar date for a full-day report range", () => {
+    expect(toLocalDayRange(new Date(2026, 5, 18, 23, 59, 59))).toEqual({
+      desde: "2026-06-18",
+      hasta: "2026-06-18",
+    });
   });
 
   it("rejects a future ending date", () => {

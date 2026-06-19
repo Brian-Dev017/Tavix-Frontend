@@ -9,24 +9,12 @@ import {
 } from "@/modules/admin/api/reportesApi";
 import { getApiErrorMessage } from "@/shared/api/apiError";
 import { downloadCsv } from "@/shared/utils/reportExport";
+import { toLocalDayRange } from "@/shared/utils/date";
 
 const toast = useToast();
 
 const data = ref<VentasPorMetodo[] | null>(null);
 const loading = ref(false);
-
-// Fecha de hoy como rango ISO
-const desde = computed(() => {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  return d.toISOString();
-});
-
-const hasta = computed(() => {
-  const d = new Date();
-  d.setHours(23, 59, 59, 999);
-  return d.toISOString();
-});
 
 const total = computed(() =>
   (data.value ?? []).reduce((acc, m) => acc + Number(m.total), 0),
@@ -111,7 +99,8 @@ function formatFechaHoy() {
 async function cargar() {
   loading.value = true;
   try {
-    const res = await reportesApi.getVentas(desde.value, hasta.value);
+    const rangoHoy = toLocalDayRange();
+    const res = await reportesApi.getVentas(rangoHoy.desde, rangoHoy.hasta);
     data.value = res.data.data.ventasPorMetodo;
   } catch (error) {
     data.value = null;
@@ -131,10 +120,11 @@ async function cargar() {
 
 function exportarCsv() {
   if (!data.value?.length) return;
+  const rangoHoy = toLocalDayRange();
 
-  downloadCsv(`pagos-${new Date().toISOString().slice(0, 10)}.csv`, [
+  downloadCsv(`pagos-${rangoHoy.desde}.csv`, [
     ["REPORTE DE MÉTODOS DE PAGO"],
-    ["Fecha", new Date().toISOString().slice(0, 10)],
+    ["Fecha", rangoHoy.desde],
     [],
     ["Método", "Transacciones", "Total"],
     ...data.value.map((item) => [

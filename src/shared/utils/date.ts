@@ -5,6 +5,14 @@ export function toLocalDateInput(date = new Date()): string {
   return `${year}-${month}-${day}`;
 }
 
+export function toLocalDayRange(date = new Date()): {
+  desde: string;
+  hasta: string;
+} {
+  const localDate = toLocalDateInput(date);
+  return { desde: localDate, hasta: localDate };
+}
+
 export function validateDateRange(
   desde: string,
   hasta: string,
