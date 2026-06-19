@@ -54,13 +54,6 @@ const navSections = [
     ],
   },
   {
-    label: "SUMINISTROS",
-    items: [
-      { label: "Stock", path: "stock", icon: "pi-box" },
-      { label: "Proveedores", path: "proveedores", icon: "pi-truck" },
-    ],
-  },
-  {
     label: "REPORTES",
     items: [
       { label: "Ventas", path: "ventas", icon: "pi-chart-bar" },
