@@ -134,6 +134,20 @@ export const reportesApi = {
       params: { desde, hasta },
       responseType: 'blob',
     }),
+  exportPagosExcel: (desde: string, hasta: string) =>
+    api.get<Blob>('/api/reportes/pagos/excel', {
+      params: { desde, hasta },
+      responseType: 'blob',
+    }),
+  exportArqueosExcel: () =>
+    api.get<Blob>('/api/reportes/arqueos/excel', {
+      responseType: 'blob',
+    }),
+  exportHistorialExcel: (estado?: string) =>
+    api.get<Blob>('/api/reportes/historial/excel', {
+      params: { estado },
+      responseType: 'blob',
+    }),
   getHistorial:   (page = 0, size = 20, estado?: string) =>
     api.get<{ data: HistorialPage }>('/api/reportes/historial', { params: { page, size, estado } }),
   getHistorialDetalle: (id: number) =>

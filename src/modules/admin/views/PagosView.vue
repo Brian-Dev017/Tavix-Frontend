@@ -8,13 +8,17 @@ import {
   type VentasPorMetodo,
 } from "@/modules/admin/api/reportesApi";
 import { getApiErrorMessage } from "@/shared/api/apiError";
-import { downloadCsv } from "@/shared/utils/reportExport";
 import { toLocalDayRange } from "@/shared/utils/date";
+import {
+  downloadBlob,
+  filenameFromDisposition,
+} from "@/shared/utils/fileDownload";
 
 const toast = useToast();
 
 const data = ref<VentasPorMetodo[] | null>(null);
 const loading = ref(false);
+const exportando = ref(false);
 
 const total = computed(() =>
   (data.value ?? []).reduce((acc, m) => acc + Number(m.total), 0),
@@ -118,33 +122,41 @@ async function cargar() {
   }
 }
 
-function exportarCsv() {
+async function exportarExcel() {
   if (!data.value?.length) return;
   const rangoHoy = toLocalDayRange();
-
-  downloadCsv(`pagos-${rangoHoy.desde}.csv`, [
-    ["REPORTE DE MÉTODOS DE PAGO"],
-    ["Fecha", rangoHoy.desde],
-    [],
-    ["Método", "Transacciones", "Total"],
-    ...data.value.map((item) => [
-      item.metodo,
-      item.cantidad,
-      item.total,
-    ]),
-    [],
-    [
-      "TOTAL",
-      data.value.reduce((sum, item) => sum + item.cantidad, 0),
-      total.value,
-    ],
-  ]);
-  toast.add({
-    severity: "success",
-    summary: "Reporte exportado",
-    detail: "El reporte de métodos de pago se descargó en formato CSV.",
-    life: 2500,
-  });
+  exportando.value = true;
+  try {
+    const response = await reportesApi.exportPagosExcel(
+      rangoHoy.desde,
+      rangoHoy.hasta,
+    );
+    downloadBlob(
+      response.data,
+      filenameFromDisposition(
+        response.headers["content-disposition"],
+        `pagos-${rangoHoy.desde}.xlsx`,
+      ),
+    );
+    toast.add({
+      severity: "success",
+      summary: "Reporte exportado",
+      detail: "Los métodos de pago se descargaron con tablas y gráfico.",
+      life: 2500,
+    });
+  } catch (error) {
+    toast.add({
+      severity: "error",
+      summary: "No se pudo exportar pagos",
+      detail: getApiErrorMessage(
+        error,
+        "No se pudo generar el archivo Excel de pagos.",
+      ),
+      life: 3000,
+    });
+  } finally {
+    exportando.value = false;
+  }
 }
 
 onMounted(cargar);
@@ -163,12 +175,13 @@ onMounted(cargar);
       </div>
       <div class="header-actions">
         <Button
-          label="Exportar CSV"
+          label="Exportar Excel"
           icon="pi pi-download"
           size="small"
           severity="secondary"
           :disabled="!data?.length"
-          @click="exportarCsv"
+          :loading="exportando"
+          @click="exportarExcel"
         />
         <Button
           icon="pi pi-refresh"

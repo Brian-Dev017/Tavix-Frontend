@@ -13,7 +13,11 @@ import {
 } from "@/shared/validation/inputValidation";
 import { getApiErrorMessage } from "@/shared/api/apiError";
 import { moneyInputProps } from "@/shared/forms/moneyInput";
-import { downloadCsv } from "@/shared/utils/reportExport";
+import {
+  downloadBlob,
+  filenameFromDisposition,
+} from "@/shared/utils/fileDownload";
+import { toLocalDateInput } from "@/shared/utils/date";
 
 const toast = useToast();
 
@@ -21,6 +25,7 @@ const arqueos = ref<Arqueo[]>([]);
 const activo = ref<Arqueo | null>(null);
 const loading = ref(false);
 const saving = ref(false);
+const exportando = ref(false);
 
 const cerrarDialog = ref(false);
 const cierreSeleccionado = ref<Arqueo | null>(null);
@@ -141,51 +146,37 @@ function formatMonto(n: number | null) {
   return `S/ ${Number(n).toFixed(2)}`;
 }
 
-function exportarCsv() {
+async function exportarExcel() {
   if (!arqueos.value.length) return;
-  downloadCsv(`arqueos-${new Date().toISOString().slice(0, 10)}.csv`, [
-    ["HISTORIAL DE ARQUEOS"],
-    ["Generado", new Date().toLocaleString("es-PE")],
-    [],
-    [
-      "ID",
-      "Cajero",
-      "Apertura",
-      "Cierre",
-      "Monto apertura",
-      "Monto cierre",
-      "Total ventas",
-      "Total efectivo",
-      "Total digital",
-      "Redondeo",
-      "Monto esperado",
-      "Diferencia",
-      "Estado",
-      "Notas",
-    ],
-    ...arqueos.value.map((item) => [
-      item.id,
-      item.nombreCajero,
-      item.aperturaEn,
-      item.cierreEn,
-      item.montoApertura,
-      item.montoCierre,
-      item.totalVentas,
-      item.totalEfectivo,
-      item.totalDigital,
-      item.totalRedondeo,
-      item.montoEsperado,
-      item.diferencia,
-      item.estado,
-      item.notas,
-    ]),
-  ]);
-  toast.add({
-    severity: "success",
-    summary: "Reporte exportado",
-    detail: "El historial de arqueos se descargó en formato CSV.",
-    life: 2500,
-  });
+  exportando.value = true;
+  try {
+    const response = await reportesApi.exportArqueosExcel();
+    downloadBlob(
+      response.data,
+      filenameFromDisposition(
+        response.headers["content-disposition"],
+        `arqueos-${toLocalDateInput()}.xlsx`,
+      ),
+    );
+    toast.add({
+      severity: "success",
+      summary: "Reporte exportado",
+      detail: "Los arqueos se descargaron con resumen, tabla y gráficos.",
+      life: 2500,
+    });
+  } catch (error) {
+    toast.add({
+      severity: "error",
+      summary: "No se pudo exportar arqueos",
+      detail: getApiErrorMessage(
+        error,
+        "No se pudo generar el archivo Excel de arqueos.",
+      ),
+      life: 3000,
+    });
+  } finally {
+    exportando.value = false;
+  }
 }
 
 onMounted(cargar);
@@ -203,12 +194,13 @@ onMounted(cargar);
         <p class="section-sub">Gestión de apertura y cierre de caja</p>
       </div>
       <Button
-        label="Exportar CSV"
+        label="Exportar Excel"
         icon="pi pi-download"
         severity="secondary"
         size="small"
         :disabled="arqueos.length === 0"
-        @click="exportarCsv"
+        :loading="exportando"
+        @click="exportarExcel"
       />
     </div>
 

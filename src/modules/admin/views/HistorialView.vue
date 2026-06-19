@@ -16,12 +16,17 @@ import {
 } from "@/shared/utils/comprobantePdf";
 import { oneOf } from "@/shared/validation/inputValidation";
 import { getApiErrorMessage } from "@/shared/api/apiError";
-import { downloadCsv } from "@/shared/utils/reportExport";
+import {
+  downloadBlob,
+  filenameFromDisposition,
+} from "@/shared/utils/fileDownload";
+import { toLocalDateInput } from "@/shared/utils/date";
 
 const toast = useToast();
 
 const items = ref<ComprobanteHistorial[]>([]);
 const loading = ref(false);
+const exportando = ref(false);
 const page = ref(0);
 const totalPages = ref(0);
 const totalElements = ref(0);
@@ -161,45 +166,40 @@ async function descargarPdf(id: number) {
   }
 }
 
-function exportarCsv() {
-  if (!items.value.length) return;
-  downloadCsv(`historial-comprobantes-pagina-${page.value + 1}.csv`, [
-    ["HISTORIAL DE COMPROBANTES"],
-    ["Estado", estadoFiltro.value || "TODOS"],
-    ["Página", page.value + 1],
-    ["Registros totales", totalElements.value],
-    [],
-    [
-      "ID",
-      "Pedido",
-      "Tipo",
-      "Serie",
-      "Número",
-      "Método",
-      "Total",
-      "Estado",
-      "Pagado",
-      "Creado",
-    ],
-    ...items.value.map((item) => [
-      item.id,
-      item.pedidoId,
-      item.tipoComprobante,
-      item.serie,
-      item.numero,
-      item.metodoPago,
-      item.total,
-      item.estado,
-      item.pagadoEn,
-      item.creadoEn,
-    ]),
-  ]);
-  toast.add({
-    severity: "success",
-    summary: "Reporte exportado",
-    detail: "La página actual del historial se descargó en formato CSV.",
-    life: 2500,
-  });
+async function exportarExcel() {
+  if (!totalElements.value) return;
+  exportando.value = true;
+  try {
+    const response = await reportesApi.exportHistorialExcel(
+      estadoFiltro.value || undefined,
+    );
+    const filtro = estadoFiltro.value || "todos";
+    downloadBlob(
+      response.data,
+      filenameFromDisposition(
+        response.headers["content-disposition"],
+        `historial-comprobantes-${filtro}-${toLocalDateInput()}.xlsx`,
+      ),
+    );
+    toast.add({
+      severity: "success",
+      summary: "Reporte exportado",
+      detail: "El historial completo filtrado se descargó en formato Excel.",
+      life: 2500,
+    });
+  } catch (error) {
+    toast.add({
+      severity: "error",
+      summary: "No se pudo exportar el historial",
+      detail: getApiErrorMessage(
+        error,
+        "No se pudo generar el archivo Excel del historial.",
+      ),
+      life: 3000,
+    });
+  } finally {
+    exportando.value = false;
+  }
 }
 
 const estadoClass = (e: string) => ({
@@ -238,12 +238,13 @@ onMounted(() => cargar());
           @click="cargar(0)"
         />
         <Button
-          label="Exportar CSV"
+          label="Exportar Excel"
           icon="pi pi-download"
           size="small"
           severity="secondary"
-          :disabled="items.length === 0"
-          @click="exportarCsv"
+          :disabled="totalElements === 0"
+          :loading="exportando"
+          @click="exportarExcel"
         />
       </div>
     </div>
